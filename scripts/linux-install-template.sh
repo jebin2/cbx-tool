@@ -8,8 +8,8 @@ BIN_LINK="$HOME/.local/bin/cbx-tool"
 DESKTOP="$HOME/.local/share/applications/cbx-tool.desktop"
 UNINSTALL="$HOME/.local/bin/cbx-tool-uninstall"
 
-# Handle uninstall flag
-if [ "$1" = "--uninstall" ]; then
+# Handle uninstall — triggered either by --uninstall flag or if invoked as cbx-tool-uninstall
+if [ "$1" = "--uninstall" ] || [ "$(basename "$0")" = "cbx-tool-uninstall" ]; then
   echo "Uninstalling CBX Tool..."
   rm -rf "$APP_DIR"
   rm -f "$BIN_LINK"
@@ -43,5 +43,5 @@ echo "Created command: cbx-tool-uninstall"
 
 echo ""
 echo "Done! Run 'cbx-tool' or find 'CBX Tool' in your app menu."
-echo "To uninstall: cbx-tool-uninstall --uninstall"
+echo "To uninstall: cbx-tool-uninstall"
 exit 0
