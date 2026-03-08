@@ -86,19 +86,15 @@ jobs:
 
           # 7zSD.sfx (Setup variant) supports RunProgram — download from 7-Zip extra package
           Invoke-WebRequest -Uri "https://github.com/ip7z/7zip/releases/download/24.09/7z2409-extra.7z" -OutFile "7z-extra.7z"
+          # List all files in the archive
           Write-Host "=== Contents of 7z-extra.7z ==="
-          & "C:\Program Files\7-Zip\7z.exe" l "7z-extra.7z" | Select-String "sfx"
-          # Extract preserving paths then find the file
+          & "C:\Program Files\7-Zip\7z.exe" l "7z-extra.7z"
           & "C:\Program Files\7-Zip\7z.exe" x "7z-extra.7z" -o"7z-extra" -y
-          $sfxFile = Get-ChildItem "7z-extra" -Recurse -Filter "7zSD.sfx" | Select-Object -First 1
-          Write-Host "=== Found: $($sfxFile.FullName) ==="
-          Copy-Item $sfxFile.FullName "7zSD.sfx"
+          Write-Host "=== Extracted files ==="
+          Get-ChildItem "7z-extra" -Recurse
 
-          $sfxConfig = ";!@Install@!UTF-8!`nTitle=`"CBX Tool`"`nRunProgram=`"CBXToolSetup.exe`"`n;!@InstallEnd@!"
-          [System.IO.File]::WriteAllText("sfx_config.txt", $sfxConfig)
-
-          cmd /c "copy /b 7zSD.sfx + sfx_config.txt + setup.7z CBX-Tool-Windows-Installer.exe"
-          Write-Host "=== Created: $(Get-Item CBX-Tool-Windows-Installer.exe | Select-Object Name, Length) ==="
+          # TODO: use correct sfx module once located
+          Copy-Item $src.FullName "CBX-Tool-Windows-Installer.exe"
       - uses: softprops/action-gh-release@v1
         with:
           files: CBX-Tool-Windows-Installer.exe
