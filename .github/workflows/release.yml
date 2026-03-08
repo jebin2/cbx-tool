@@ -70,7 +70,7 @@ jobs:
         if: runner.os == 'Windows'
         run: |
           if (!(Test-Path artifacts)) { New-Item -ItemType Directory -Path artifacts }
-          Compress-Archive -Path build/stable-windows-x64/CBXTool/* -DestinationPath artifacts/CBX-Tool-Windows-Portable.zip
+          Compress-Archive -Path build/stable-win-x64/CBXTool/* -DestinationPath artifacts/CBX-Tool-Windows-Portable.zip
 
       # TODO: MSI generation requires WiX or similar. For now, we provide the Portable ZIP and the standard Electrobun artifacts.
 
