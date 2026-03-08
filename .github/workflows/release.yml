@@ -31,13 +31,15 @@ jobs:
       - name: Build application
         run: bunx electrobun build --env=stable
 
-      # Linux: use Setup.tar.gz from artifacts/ (self-extracting installer, ~32MB)
+      # Linux: extract just the installer binary from Setup.tar.gz
       - name: Collect artifact (Linux)
         if: runner.os == 'Linux'
         run: |
           SRC=$(find artifacts/ -name "*Setup.tar.gz" | head -1)
-          echo "=== Using: $SRC ===" && ls -lh "$SRC"
-          cp "$SRC" CBX-Tool-Linux-Setup.tar.gz
+          echo "=== Using: $SRC ==="
+          tar -xzf "$SRC" ./installer
+          mv installer CBX-Tool-Linux-Installer
+          chmod +x CBX-Tool-Linux-Installer
 
       # macOS: zip the .app bundle from build/ (confirmed working, ~17.5MB)
       - name: Collect artifact (macOS)
@@ -61,7 +63,7 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            CBX-Tool-Linux-Setup.tar.gz
+            CBX-Tool-Linux-Installer
             CBX-Tool-macOS.zip
             CBX-Tool-Windows-Setup.exe
         env:
