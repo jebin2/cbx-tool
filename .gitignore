@@ -21,3 +21,4 @@ libNativeWrapper.so
 zig-zstd
 bspatch
 launcher
+artifacts/
