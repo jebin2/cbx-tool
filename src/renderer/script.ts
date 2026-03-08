@@ -130,12 +130,11 @@ async function loadCbz(arrayBuffer: ArrayBuffer) {
       blob,
     });
   }
-
-  pageCount.textContent = `${pages.length} pages`;
 }
 
 function renderPageList() {
   pageList.innerHTML = "";
+  pageCount.textContent = `${pages.length} pages`;
   
   pages.forEach((page, index) => {
     const item = document.createElement("div");
@@ -193,7 +192,6 @@ function removePage(index: number) {
     previewImage.src = "";
     previewImage.classList.add("hidden");
     dropZone.classList.remove("hidden");
-    pageCount.textContent = "0 pages";
   }
 }
 
