@@ -90,7 +90,7 @@ jobs:
 
           # Convert PNG to ICO for NSIS installer icon
           Add-Type -AssemblyName System.Drawing
-          $png = [System.Drawing.Image]::FromFile((Resolve-Path "resources/icon-transparent-1.png"))
+          $png = [System.Drawing.Image]::FromFile((Resolve-Path "resources/icon-transparent.png"))
           $ico = New-Object System.Drawing.Icon($png, 256, 256)
           $stream = [System.IO.File]::OpenWrite("installer-icon.ico")
           $ico.Save($stream)
