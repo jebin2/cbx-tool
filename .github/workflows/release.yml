@@ -42,22 +42,22 @@ jobs:
           cp resources/icon.png AppDir/icon.png
 
           # Create Desktop file
-          cat > AppDir/CBXTool.desktop << 'EOF'
-[Desktop Entry]
-Name=CBX Tool
-Exec=bin/launcher
-Icon=icon
-Type=Application
-Categories=Graphics;
-EOF
+          {
+            echo '[Desktop Entry]'
+            echo 'Name=CBX Tool'
+            echo 'Exec=bin/launcher'
+            echo 'Icon=icon'
+            echo 'Type=Application'
+            echo 'Categories=Graphics;'
+          } > AppDir/CBXTool.desktop
 
           # Create AppRun
-          cat > AppDir/AppRun << 'EOF'
-#!/bin/sh
-HERE="$(dirname "$(readlink -f "${0}")")"
-export LD_LIBRARY_PATH="$HERE/lib:$LD_LIBRARY_PATH"
-exec "$HERE/bin/launcher" "$@"
-EOF
+          {
+            echo '#!/bin/sh'
+            echo 'HERE="$(dirname "$(readlink -f "${0}")")"'
+            echo 'export LD_LIBRARY_PATH="$HERE/lib:$LD_LIBRARY_PATH"'
+            echo 'exec "$HERE/bin/launcher" "$@"'
+          } > AppDir/AppRun
           chmod +x AppDir/AppRun
 
           # Download and run appimagetool
