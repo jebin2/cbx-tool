@@ -69,8 +69,11 @@ jobs:
       - name: Create App ZIP (macOS)
         if: runner.os == 'macOS'
         run: |
-          cd build/stable-macos-arm64/
-          zip -r ../../CBXTool.app.zip CBXTool.app
+          echo "=== build/ contents ===" && ls build/
+          BUILD_DIR=$(ls -d build/stable-macos-*/ | head -1)
+          echo "=== Using: $BUILD_DIR ===" && ls "$BUILD_DIR"
+          cd "$BUILD_DIR"
+          zip -r ../../CBXTool.app.zip *.app
 
       # Windows Specific: ZIP (exe needs lib/ and Resources/ alongside it)
       - name: Create Portable ZIP (Windows)
