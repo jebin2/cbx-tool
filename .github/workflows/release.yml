@@ -31,46 +31,41 @@ jobs:
       - name: Build application
         run: bunx electrobun build --env=stable
 
-      # Linux: use the .tar.zst electrobun already produces
-      - name: Package portable (Linux)
+      - name: List build output
+        run: ls build/
+
+      # Linux: electrobun produces a self-extracting Setup.tar.gz — use it directly
+      - name: Collect artifact (Linux)
         if: runner.os == 'Linux'
         run: |
-          echo "=== build/ contents ===" && ls build/
-          TAR=$(ls build/stable-linux-*CBXTool.tar.zst | head -1)
-          echo "=== Using: $TAR ==="
-          cp "$TAR" CBX-Tool-Linux.tar.zst
+          SRC=$(ls build/stable-linux-*-Setup.tar.gz | head -1)
+          echo "Found: $SRC"
+          cp "$SRC" CBX-Tool-Linux-Setup.tar.gz
 
-      # macOS: zip the .app bundle (directory, must be archived)
-      - name: Package portable (macOS)
+      # macOS: electrobun produces a .dmg — use it directly
+      - name: Collect artifact (macOS)
         if: runner.os == 'macOS'
         run: |
-          echo "=== build/ contents ===" && ls build/
-          BUILD_DIR=$(ls -d build/stable-macos-*/ | head -1)
-          echo "=== Using: $BUILD_DIR ===" && ls "$BUILD_DIR"
-          cd "$BUILD_DIR"
-          zip -r ../../CBXTool.app.zip *.app
+          SRC=$(ls build/stable-macos-*.dmg 2>/dev/null || ls build/stable-macos-*/*.dmg 2>/dev/null | head -1)
+          echo "Found: $SRC"
+          cp "$SRC" CBX-Tool-macOS.dmg
 
-      # Windows: rename launcher, zip the app folder
-      - name: Package portable (Windows)
+      # Windows: electrobun produces a Setup.exe — use it directly
+      - name: Collect artifact (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          echo "=== build/ contents ===" && Get-ChildItem build/
-          $buildDir = (Get-ChildItem -Directory build/ | Where-Object { $_.Name -like "stable-win*" } | Select-Object -First 1).FullName
-          $appDir   = (Get-ChildItem -Directory $buildDir | Select-Object -First 1).FullName
-          echo "=== App dir: $appDir ===" && Get-ChildItem $appDir
-          $binDir = Join-Path $appDir "bin"
-          echo "=== bin/ contents ===" && Get-ChildItem $binDir
-          $launcher = Get-ChildItem $binDir -Filter "*.exe" | Select-Object -First 1
-          Rename-Item $launcher.FullName "CBX-Tool.exe"
-          Compress-Archive -Path "$appDir\*" -DestinationPath CBX-Tool-Windows.zip
+          Get-ChildItem build/ -Recurse
+          $src = Get-ChildItem build/ -Recurse -Filter "*Setup.exe" | Select-Object -First 1
+          Write-Host "Found: $($src.FullName)"
+          Copy-Item $src.FullName "CBX-Tool-Windows-Setup.exe"
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            CBX-Tool-Linux.tar.zst
-            CBXTool.app.zip
-            CBX-Tool-Windows.zip
+            CBX-Tool-Linux-Setup.tar.gz
+            CBX-Tool-macOS.dmg
+            CBX-Tool-Windows-Setup.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
