@@ -23,15 +23,15 @@ jobs:
         run: |
           tar -xzf artifacts/stable-linux-*-Setup.tar.gz ./installer
           chmod +x installer
-          cp scripts/linux-install-template.sh CBX-Tool-Linux-Install.sh
-          LINES=$(wc -l < CBX-Tool-Linux-Install.sh)
+          cp scripts/linux-install-template.sh CBX-Tool-Linux.sh
+          LINES=$(wc -l < CBX-Tool-Linux.sh)
           LINES=$((LINES + 1))
-          sed -i "s/__LINES__/$LINES/" CBX-Tool-Linux-Install.sh
-          base64 -w 0 installer >> CBX-Tool-Linux-Install.sh
-          chmod +x CBX-Tool-Linux-Install.sh
+          sed -i "s/__LINES__/$LINES/" CBX-Tool-Linux.sh
+          base64 -w 0 installer >> CBX-Tool-Linux.sh
+          chmod +x CBX-Tool-Linux.sh
       - uses: softprops/action-gh-release@v1
         with:
-          files: CBX-Tool-Linux-Install.sh
+          files: CBX-Tool-Linux.sh
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -86,9 +86,9 @@ jobs:
 
           Copy-Item scripts/installer.nsi installer.nsi
           & "C:\Program Files (x86)\NSIS\makensis.exe" installer.nsi
-          Write-Host "=== Created: $(Get-Item CBX-Tool-Windows-Installer.exe | Select-Object Name, Length) ==="
+          Write-Host "=== Created: $(Get-Item CBX-Tool-Windows.exe | Select-Object Name, Length) ==="
       - uses: softprops/action-gh-release@v1
         with:
-          files: CBX-Tool-Windows-Installer.exe
+          files: CBX-Tool-Windows.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,7 +1,7 @@
 !include "MUI2.nsh"
 
 Name "CBX Tool"
-OutFile "CBX-Tool-Windows-Installer.exe"
+OutFile "CBX-Tool-Windows.exe"
 InstallDir "$LOCALAPPDATA\CBX Tool"
 RequestExecutionLevel user
 ShowInstDetails show
