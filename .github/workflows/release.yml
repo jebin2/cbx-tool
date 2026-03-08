@@ -73,14 +73,14 @@ jobs:
       - name: List artifacts
         shell: pwsh
         run: Get-ChildItem artifacts/ -Recurse
-      - name: Collect Setup.exe
+      - name: Collect Setup zip
         shell: pwsh
         run: |
-          $src = Get-ChildItem build/ -Recurse -Filter "*Setup.exe" | Select-Object -First 1
+          $src = Get-ChildItem artifacts/ -Filter "*Setup.zip" | Select-Object -First 1
           Write-Host "=== Using: $($src.FullName) ==="
-          Copy-Item $src.FullName "CBX-Tool-Windows-Setup.exe"
+          Copy-Item $src.FullName "CBX-Tool-Windows-Setup.zip"
       - uses: softprops/action-gh-release@v1
         with:
-          files: CBX-Tool-Windows-Setup.exe
+          files: CBX-Tool-Windows-Setup.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
