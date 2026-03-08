@@ -302,6 +302,10 @@ dropZone.addEventListener("dragover", (e) => {
   dropZone.classList.add("dragover");
 });
 
+dropZone.addEventListener("click", () => {
+  openBtn.click();
+});
+
 dropZone.addEventListener("dragleave", () => {
   dropZone.classList.remove("dragover");
 });
