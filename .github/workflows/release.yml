@@ -79,11 +79,12 @@ jobs:
           $src = Get-ChildItem artifacts/ -Filter "*Setup.zip" | Select-Object -First 1
           Write-Host "=== Using: $($src.FullName) ==="
 
-          # Extract zip then repack as 7z (SFX module only supports 7z format)
+          # Extract zip, rename exe to remove spaces, repack as 7z
           & "C:\Program Files\7-Zip\7z.exe" x $src.FullName -o"setup_extracted"
+          Rename-Item "setup_extracted\CBX Tool-Setup.exe" "CBXToolSetup.exe"
           & "C:\Program Files\7-Zip\7z.exe" a -t7z setup.7z ".\setup_extracted\*"
 
-          $sfxConfig = ";!@Install@!UTF-8!`nTitle=`"CBX Tool`"`nRunProgram=`"CBX Tool-Setup.exe`"`n;!@InstallEnd@!"
+          $sfxConfig = ";!@Install@!UTF-8!`nTitle=`"CBX Tool`"`nRunProgram=`"CBXToolSetup.exe`"`n;!@InstallEnd@!"
           [System.IO.File]::WriteAllText("sfx_config.txt", $sfxConfig)
 
           $sfxModule = "C:\Program Files\7-Zip\7z.sfx"
