@@ -42,16 +42,14 @@ jobs:
           echo "Found: $SRC"
           cp "$SRC" CBX-Tool-Linux-Setup.tar.gz
 
-      # macOS: list all build output first, then collect
+      # macOS: electrobun outputs a .app bundle directory — zip it for distribution
       - name: Collect artifact (macOS)
         if: runner.os == 'macOS'
         run: |
-          echo "=== full build/ tree ==="
-          find build/ -type f
-          SRC=$(find build/ -type f \( -name "*.dmg" -o -name "*.zip" -o -name "*.tar.gz" -o -name "*.tar.zst" \) | grep -v update.json | grep -i "setup\|installer\|CBXTool" | head -1)
-          echo "=== Using: $SRC ==="
-          EXT="${SRC##*.}"
-          cp "$SRC" "CBX-Tool-macOS.$EXT"
+          APP=$(find build/stable-macos-*/ -maxdepth 1 -name "*.app" -type d | head -1)
+          echo "=== Found app: $APP ==="
+          cd "$(dirname "$APP")"
+          zip -r "../../CBX-Tool-macOS.zip" "$(basename "$APP")"
 
       # Windows: electrobun produces a Setup.exe — use it directly
       - name: Collect artifact (Windows)
@@ -68,7 +66,7 @@ jobs:
         with:
           files: |
             CBX-Tool-Linux-Setup.tar.gz
-            CBX-Tool-macOS.*
+            CBX-Tool-macOS.zip
             CBX-Tool-Windows-Setup.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
