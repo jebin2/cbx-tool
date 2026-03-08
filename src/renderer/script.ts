@@ -330,3 +330,12 @@ document.addEventListener("keydown", (e) => {
     togglePage(selectedPageIndex);
   }
 });
+
+previewImage.addEventListener("dblclick", () => {
+  previewImage.classList.toggle("zoomed");
+  const viewer = document.querySelector(".viewer");
+  if (viewer) {
+    viewer.classList.toggle("zoomed");
+  }
+});
+

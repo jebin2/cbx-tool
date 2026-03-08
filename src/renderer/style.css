@@ -398,6 +398,11 @@ button:disabled {
   padding: 40px;
 }
 
+.viewer.zoomed {
+  overflow-y: auto;
+  align-items: flex-start;
+}
+
 /* ── Drop zone ─────────────────────────────────────── */
 .drop-zone {
   display: flex;
@@ -482,6 +487,14 @@ button:disabled {
   border-radius: var(--r-sm);
   box-shadow: var(--s4), 0 0 40px rgba(0, 0, 0, 0.5);
   transition: opacity 0.3s ease;
+  cursor: zoom-in;
+}
+
+.preview-image.zoomed {
+  width: 100%;
+  height: auto;
+  max-height: none;
+  cursor: zoom-out;
 }
 
 /* ── Loader ────────────────────────────────────────── */
