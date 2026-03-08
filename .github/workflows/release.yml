@@ -89,7 +89,9 @@ jobs:
           & "C:\Program Files\7-Zip\7z.exe" x $src.FullName -o"setup_extracted"
 
           # Generate ICO with all required sizes — Windows needs 16x16 and 32x32 for list/details view
-          magick resources/icon-transparent-1.png -define icon:auto-resize="256,48,32,16" installer-icon.ico
+          $iconSrc = "$env:GITHUB_WORKSPACE\resources\icon-transparent-1.png"
+          Write-Host "=== Icon source: $iconSrc (exists: $(Test-Path $iconSrc)) ==="
+          magick $iconSrc -define icon:auto-resize="256,48,32,16" installer-icon.ico
 
           Copy-Item scripts/installer.nsi installer.nsi
           & "C:\Program Files (x86)\NSIS\makensis.exe" /DICON_PATH=installer-icon.ico installer.nsi
