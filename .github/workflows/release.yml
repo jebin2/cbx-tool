@@ -83,7 +83,6 @@ jobs:
           Write-Host "=== Using: $($src.FullName) ==="
 
           & "C:\Program Files\7-Zip\7z.exe" x $src.FullName -o"setup_extracted"
-          Rename-Item "setup_extracted\CBX Tool-Setup.exe" "CBXToolSetup.exe"
 
           Copy-Item scripts/installer.nsi installer.nsi
           & "C:\Program Files (x86)\NSIS\makensis.exe" installer.nsi
