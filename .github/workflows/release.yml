@@ -31,48 +31,38 @@ jobs:
       - name: Build application
         run: bunx electrobun build --env=stable
 
-      - name: List artifacts (Unix)
-        if: runner.os != 'Windows'
-        run: find artifacts/ -type f
-
-      - name: List artifacts (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: Get-ChildItem artifacts/ -Recurse
-
-      # Linux: use the Setup.tar.gz from artifacts/ (contains self-extracting installer)
+      # Linux: use Setup.tar.gz from artifacts/ (self-extracting installer, ~32MB)
       - name: Collect artifact (Linux)
         if: runner.os == 'Linux'
         run: |
           SRC=$(find artifacts/ -name "*Setup.tar.gz" | head -1)
-          echo "=== Using: $SRC ==="
+          echo "=== Using: $SRC ===" && ls -lh "$SRC"
           cp "$SRC" CBX-Tool-Linux-Setup.tar.gz
 
-      # macOS: use whatever artifact electrobun produces
+      # macOS: zip the .app bundle from build/ (confirmed working, ~17.5MB)
       - name: Collect artifact (macOS)
         if: runner.os == 'macOS'
         run: |
-          SRC=$(find artifacts/ -type f ! -name "update.json" | head -1)
-          echo "=== Using: $SRC ==="
-          EXT="${SRC##*.}"
-          cp "$SRC" "CBX-Tool-macOS.$EXT"
+          APP=$(find build/stable-macos-*/ -maxdepth 1 -name "*.app" -type d | head -1)
+          echo "=== Found: $APP ==="
+          cd "$(dirname "$APP")"
+          zip -r "../../CBX-Tool-macOS.zip" "$(basename "$APP")"
 
-      # Windows: use whatever artifact electrobun produces
+      # Windows: use Setup.exe from build/ (confirmed working, ~415KB)
       - name: Collect artifact (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          $src = Get-ChildItem artifacts/ | Where-Object { $_.Name -notlike "*update.json" } | Select-Object -First 1
+          $src = Get-ChildItem build/ -Recurse -Filter "*Setup.exe" | Select-Object -First 1
           Write-Host "=== Using: $($src.FullName) ==="
-          $ext = $src.Extension
-          Copy-Item $src.FullName "CBX-Tool-Windows$ext"
+          Copy-Item $src.FullName "CBX-Tool-Windows-Setup.exe"
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
           files: |
             CBX-Tool-Linux-Setup.tar.gz
-            CBX-Tool-macOS.*
-            CBX-Tool-Windows.*
+            CBX-Tool-macOS.zip
+            CBX-Tool-Windows-Setup.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
