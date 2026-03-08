@@ -73,28 +73,18 @@ jobs:
       - name: List artifacts
         shell: pwsh
         run: Get-ChildItem artifacts/ -Recurse
-      - name: Build single-file installer (7-Zip SFX)
+      - name: Build single-file installer (NSIS)
         shell: pwsh
         run: |
           $src = Get-ChildItem artifacts/ -Filter "*Setup.zip" | Select-Object -First 1
           Write-Host "=== Using: $($src.FullName) ==="
 
-          # Extract zip, rename exe to remove spaces, repack as 7z
           & "C:\Program Files\7-Zip\7z.exe" x $src.FullName -o"setup_extracted"
           Rename-Item "setup_extracted\CBX Tool-Setup.exe" "CBXToolSetup.exe"
-          & "C:\Program Files\7-Zip\7z.exe" a -t7z setup.7z ".\setup_extracted\*"
 
-          # 7zSD.sfx (Setup variant) supports RunProgram — download from 7-Zip extra package
-          Invoke-WebRequest -Uri "https://github.com/ip7z/7zip/releases/download/24.09/7z2409-extra.7z" -OutFile "7z-extra.7z"
-          # List all files in the archive
-          Write-Host "=== Contents of 7z-extra.7z ==="
-          & "C:\Program Files\7-Zip\7z.exe" l "7z-extra.7z"
-          & "C:\Program Files\7-Zip\7z.exe" x "7z-extra.7z" -o"7z-extra" -y
-          Write-Host "=== Extracted files ==="
-          Get-ChildItem "7z-extra" -Recurse
-
-          # TODO: use correct sfx module once located
-          Copy-Item $src.FullName "CBX-Tool-Windows-Installer.exe"
+          Copy-Item scripts/installer.nsi installer.nsi
+          & "C:\Program Files (x86)\NSIS\makensis.exe" installer.nsi
+          Write-Host "=== Created: $(Get-Item CBX-Tool-Windows-Installer.exe | Select-Object Name, Length) ==="
       - uses: softprops/action-gh-release@v1
         with:
           files: CBX-Tool-Windows-Installer.exe
