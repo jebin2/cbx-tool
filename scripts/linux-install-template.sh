@@ -31,8 +31,7 @@ mkdir -p "$HOME/.local/bin"
 ln -sf "$LAUNCHER" "$BIN_LINK"
 echo "Created command: cbx-tool"
 
-ICON_SRC="$APP_DIR/stable/app/icon.png"
-[ -f "$ICON_SRC" ] || ICON_SRC="$APP_DIR/stable/app/Resources/icon.png"
+ICON_SRC="$APP_DIR/stable/app/Resources/app/icon.png"
 ICON_DEST="$HOME/.local/share/icons/hicolor/256x256/apps/cbx-tool.png"
 
 # Install icon to hicolor theme
