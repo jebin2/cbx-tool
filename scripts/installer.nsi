@@ -1,5 +1,10 @@
 !include "MUI2.nsh"
 
+!ifdef ICON_PATH
+  !define MUI_ICON "${ICON_PATH}"
+  !define MUI_UNICON "${ICON_PATH}"
+!endif
+
 Name "CBX Tool"
 OutFile "CBX-Tool-Windows.exe"
 InstallDir "$LOCALAPPDATA\CBX Tool"

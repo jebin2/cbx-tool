@@ -4,8 +4,8 @@ export default {
   app: {
     name: "CBX Tool",
     identifier: "com.cbxtool.app",
-    version: "1.3.0",
-    icon: "resources/icon.png",
+    version: "1.3.1",
+    icon: "resources/icon-transparent.png",
   },
   build: {
     bun: {
@@ -19,6 +19,7 @@ export default {
     copy: {
       "src/renderer/index.html": "views/mainview/index.html",
       "src/renderer/style.css": "views/mainview/style.css",
+      "resources/icon-transparent.png": "icon.png",
     },
   },
   runtime: {

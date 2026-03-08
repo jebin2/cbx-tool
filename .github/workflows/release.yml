@@ -52,7 +52,11 @@ jobs:
         run: |
           APP=$(find build/stable-macos-*/ -maxdepth 1 -name "*.app" -type d | head -1)
           echo "=== Found: $APP ==="
-          hdiutil create -volname "CBX Tool" -srcfolder "$APP" -ov -format UDZO CBX-Tool-macOS.dmg
+          # Create staging folder with app + Applications symlink for drag-install UX
+          mkdir dmg-staging
+          cp -r "$APP" dmg-staging/
+          ln -s /Applications dmg-staging/Applications
+          hdiutil create -volname "CBX Tool" -srcfolder dmg-staging -ov -format UDZO CBX-Tool-macOS.dmg
       - uses: softprops/action-gh-release@v1
         with:
           files: CBX-Tool-macOS.dmg
@@ -84,8 +88,16 @@ jobs:
 
           & "C:\Program Files\7-Zip\7z.exe" x $src.FullName -o"setup_extracted"
 
+          # Convert PNG to ICO for NSIS installer icon
+          Add-Type -AssemblyName System.Drawing
+          $png = [System.Drawing.Image]::FromFile((Resolve-Path "resources/icon-transparent.png"))
+          $ico = New-Object System.Drawing.Icon($png, 256, 256)
+          $stream = [System.IO.File]::OpenWrite("installer-icon.ico")
+          $ico.Save($stream)
+          $stream.Close()
+
           Copy-Item scripts/installer.nsi installer.nsi
-          & "C:\Program Files (x86)\NSIS\makensis.exe" installer.nsi
+          & "C:\Program Files (x86)\NSIS\makensis.exe" /DICON_PATH=installer-icon.ico installer.nsi
           Write-Host "=== Created: $(Get-Item CBX-Tool-Windows.exe | Select-Object Name, Length) ==="
       - uses: softprops/action-gh-release@v1
         with:

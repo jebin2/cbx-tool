@@ -31,8 +31,14 @@ mkdir -p "$HOME/.local/bin"
 ln -sf "$LAUNCHER" "$BIN_LINK"
 echo "Created command: cbx-tool"
 
+# Install icon
+mkdir -p "$HOME/.local/share/icons/hicolor/256x256/apps"
+cp "$HOME/.local/share/$APP_ID/stable/app/Resources/icon.png" \
+   "$HOME/.local/share/icons/hicolor/256x256/apps/cbx-tool.png" 2>/dev/null || true
+update-icon-caches "$HOME/.local/share/icons" 2>/dev/null || true
+
 mkdir -p "$HOME/.local/share/applications"
-printf '[Desktop Entry]\nName=CBX Tool\nExec=%s\nType=Application\nCategories=Graphics;\n' "$LAUNCHER" > "$DESKTOP"
+printf '[Desktop Entry]\nName=CBX Tool\nExec=%s\nIcon=cbx-tool\nType=Application\nCategories=Graphics;\n' "$LAUNCHER" > "$DESKTOP"
 update-desktop-database "$HOME/.local/share/applications" 2>/dev/null || true
 echo "Created app menu entry"
 
