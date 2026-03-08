@@ -85,19 +85,14 @@ jobs:
           & "C:\Program Files\7-Zip\7z.exe" a -t7z setup.7z ".\setup_extracted\*"
 
           # 7zSD.sfx (Setup variant) supports RunProgram — download from 7-Zip extra package
-          $7zVersion = (Get-Item "C:\Program Files\7-Zip\7z.exe").VersionInfo.ProductVersion -replace '\.(\d)$','.$1'
-          $extraUrl = "https://www.7-zip.org/a/7z$(($7zVersion -replace '\.','').Substring(0,4))-extra.7z"
-          Write-Host "=== Downloading 7-Zip extra from: $extraUrl ==="
-          Invoke-WebRequest -Uri $extraUrl -OutFile "7z-extra.7z" -ErrorAction SilentlyContinue
-          if (Test-Path "7z-extra.7z") {
-            & "C:\Program Files\7-Zip\7z.exe" e "7z-extra.7z" "7zSD.sfx" -o"." -y
-          }
-          if (-not (Test-Path "7zSD.sfx")) {
-            Write-Host "Falling back to bundled 7zSD.sfx download..."
-            Invoke-WebRequest -Uri "https://github.com/ip7z/7zip/releases/download/24.09/7z2409-extra.7z" -OutFile "7z-extra.7z"
-            & "C:\Program Files\7-Zip\7z.exe" e "7z-extra.7z" "7zSD.sfx" -o"." -y
-          }
-          Write-Host "=== 7zSD.sfx available: $(Test-Path '7zSD.sfx') ==="
+          Invoke-WebRequest -Uri "https://github.com/ip7z/7zip/releases/download/24.09/7z2409-extra.7z" -OutFile "7z-extra.7z"
+          Write-Host "=== Contents of 7z-extra.7z ==="
+          & "C:\Program Files\7-Zip\7z.exe" l "7z-extra.7z" | Select-String "sfx"
+          # Extract preserving paths then find the file
+          & "C:\Program Files\7-Zip\7z.exe" x "7z-extra.7z" -o"7z-extra" -y
+          $sfxFile = Get-ChildItem "7z-extra" -Recurse -Filter "7zSD.sfx" | Select-Object -First 1
+          Write-Host "=== Found: $($sfxFile.FullName) ==="
+          Copy-Item $sfxFile.FullName "7zSD.sfx"
 
           $sfxConfig = ";!@Install@!UTF-8!`nTitle=`"CBX Tool`"`nRunProgram=`"CBXToolSetup.exe`"`n;!@InstallEnd@!"
           [System.IO.File]::WriteAllText("sfx_config.txt", $sfxConfig)
