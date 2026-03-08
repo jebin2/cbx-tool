@@ -81,6 +81,13 @@ async function openComicFile(file: File, filePath?: string) {
       currentFile = arrayBuffer;
       dropZone.classList.add("hidden");
       previewImage.classList.remove("hidden");
+
+      const sidebar = document.querySelector(".sidebar");
+      if (sidebar) sidebar.classList.remove("hidden");
+
+      const toolbar = document.querySelector(".toolbar");
+      if (toolbar) toolbar.classList.remove("hidden");
+
       saveBtn.disabled = false;
       renderPageList();
 

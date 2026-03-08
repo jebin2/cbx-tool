@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -9,23 +10,34 @@
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
+
 <body>
   <div class="app">
-    <div class="toolbar">
+    <div class="toolbar hidden">
       <div class="toolbar-actions">
         <button id="openBtn">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="17 8 12 3 7 8" />
+            <line x1="12" y1="3" x2="12" y2="15" />
+          </svg>
           Open
         </button>
         <button id="saveBtn" disabled>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+            <polyline points="17 21 17 13 7 13 7 21" />
+            <polyline points="7 3 7 8 15 8" />
+          </svg>
           Save
         </button>
       </div>
     </div>
 
     <div class="main-content">
-      <aside class="sidebar">
+      <aside class="sidebar hidden">
         <div class="sidebar-header">
           <span class="sidebar-title">Pages</span>
           <span id="pageCount">—</span>
@@ -36,10 +48,11 @@
       <section class="viewer">
         <div id="dropZone" class="drop-zone">
           <svg class="drop-icon" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <rect x="8" y="16" width="48" height="36" rx="6" stroke="currentColor" stroke-width="2.5" fill="none"/>
-            <path d="M8 24h48" stroke="currentColor" stroke-width="2.5"/>
-            <path d="M8 20c0-2.2 1.8-4 4-4h12l4 4H8z" fill="currentColor" opacity="0.3"/>
-            <path d="M32 34v10M27 39l5-5 5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <rect x="8" y="16" width="48" height="36" rx="6" stroke="currentColor" stroke-width="2.5" fill="none" />
+            <path d="M8 24h48" stroke="currentColor" stroke-width="2.5" />
+            <path d="M8 20c0-2.2 1.8-4 4-4h12l4 4H8z" fill="currentColor" opacity="0.3" />
+            <path d="M32 34v10M27 39l5-5 5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+              stroke-linejoin="round" />
           </svg>
           <p>Drop a .cbz file here</p>
           <p class="drop-sub">or click Open above</p>
@@ -57,4 +70,5 @@
   <input type="file" id="fileInput" accept=".cbz,.cbr" hidden>
   <script type="module" src="script.js"></script>
 </body>
+
 </html>
