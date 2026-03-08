@@ -4,7 +4,8 @@ export default {
   app: {
     name: "CBX Tool",
     identifier: "com.cbxtool.app",
-    version: "1.1.1",
+    version: "1.2.0",
+    icon: "resources/icon.png",
   },
   build: {
     bun: {

@@ -30,16 +30,57 @@ jobs:
       - name: Build application
         run: bunx electrobun build --env=stable
 
-      - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: stable-${{ matrix.os }}
-          path: artifacts/
+      # Linux Specific: AppImage
+      - name: Create AppImage (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          mkdir -p AppDir
+          cp -r build/stable-linux-x64/CBXTool/* AppDir/
+          
+          # Create Desktop file
+          cat > AppDir/CBXTool.desktop <<EOF
+          [Desktop Entry]
+          Name=CBX Tool
+          Exec=bin/CBXTool
+          Icon=icon
+          Type=Application
+          Categories=Graphics;
+          EOF
+          
+          # Copy icon
+          cp resources/icon.png AppDir/icon.png
+          
+          # Create AppRun
+          cat > AppDir/AppRun <<EOF
+          #!/bin/sh
+          HERE="\$(dirname "\$(readlink -f "\${0}")")"
+          export LD_LIBRARY_PATH="\$HERE/lib:\$LD_LIBRARY_PATH"
+          exec "\$HERE/bin/CBXTool" "\$@"
+          EOF
+          chmod +x AppDir/AppRun
+          
+          # Download and run appimagetool
+          curl -LO https://github.com/AppImage/AppImageKit/releases/download/13/appimagetool-x86_64.AppImage
+          chmod +x appimagetool-x86_64.AppImage
+          ./appimagetool-x86_64.AppImage AppDir CBX-Tool-x86_64.AppImage
+
+      # Windows Specific: ZIP (Portable)
+      - name: Create ZIP (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          Compress-Archive -Path build/stable-windows-x64/CBXTool/* -DestinationPath artifacts/CBX-Tool-Windows-Portable.zip
+
+      # TODO: MSI generation requires WiX or similar. For now, we provide the Portable ZIP and the standard Electrobun artifacts.
 
       - name: Create Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v1
         with:
-          files: artifacts/*
+          files: |
+            CBX-Tool-x86_64.AppImage
+            artifacts/*.dmg
+            artifacts/*.exe
+            artifacts/*.zip
+            artifacts/*.tar.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
