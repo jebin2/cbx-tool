@@ -12,6 +12,7 @@ jobs:
     permissions:
       contents: write
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
 
@@ -60,7 +61,7 @@ jobs:
           chmod +x AppDir/AppRun
           
           # Download and run appimagetool
-          curl -LO https://github.com/AppImage/AppImageKit/releases/download/13/appimagetool-x86_64.AppImage
+          curl -LO https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
           chmod +x appimagetool-x86_64.AppImage
           ./appimagetool-x86_64.AppImage AppDir CBX-Tool-x86_64.AppImage
 
@@ -68,6 +69,7 @@ jobs:
       - name: Create ZIP (Windows)
         if: runner.os == 'Windows'
         run: |
+          if (!(Test-Path artifacts)) { New-Item -ItemType Directory -Path artifacts }
           Compress-Archive -Path build/stable-windows-x64/CBXTool/* -DestinationPath artifacts/CBX-Tool-Windows-Portable.zip
 
       # TODO: MSI generation requires WiX or similar. For now, we provide the Portable ZIP and the standard Electrobun artifacts.
