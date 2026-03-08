@@ -31,46 +31,17 @@ jobs:
       - name: Build application
         run: bunx electrobun build --env=stable
 
-      # Linux Specific: AppImage
-      - name: Create AppImage (Linux)
+      # Linux: use the .tar.zst electrobun already produces
+      - name: Package portable (Linux)
         if: runner.os == 'Linux'
         run: |
           echo "=== build/ contents ===" && ls build/
-          BUILD_DIR=$(ls -d build/stable-linux-*/ | head -1)
-          APP_DIR=$(ls -d "$BUILD_DIR"*/ | head -1)
-          echo "=== Using: $APP_DIR ===" && ls "$APP_DIR"
-          mkdir -p AppDir
-          cp -r "$APP_DIR"* AppDir/
+          TAR=$(ls build/stable-linux-*CBXTool.tar.zst | head -1)
+          echo "=== Using: $TAR ==="
+          cp "$TAR" CBX-Tool-Linux.tar.zst
 
-          # Copy icon
-          cp resources/icon.png AppDir/icon.png
-
-          # Create Desktop file
-          {
-            echo '[Desktop Entry]'
-            echo 'Name=CBX Tool'
-            echo 'Exec=bin/launcher'
-            echo 'Icon=icon'
-            echo 'Type=Application'
-            echo 'Categories=Graphics;'
-          } > AppDir/CBXTool.desktop
-
-          # Create AppRun
-          {
-            echo '#!/bin/sh'
-            echo 'HERE="$(dirname "$(readlink -f "${0}")")"'
-            echo 'export LD_LIBRARY_PATH="$HERE/lib:$LD_LIBRARY_PATH"'
-            echo 'exec "$HERE/bin/launcher" "$@"'
-          } > AppDir/AppRun
-          chmod +x AppDir/AppRun
-
-          # Download and run appimagetool
-          curl -LO https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
-          chmod +x appimagetool-x86_64.AppImage
-          APPIMAGE_EXTRACT_AND_RUN=1 ./appimagetool-x86_64.AppImage AppDir CBX-Tool-x86_64.AppImage
-
-      # macOS Specific: ZIP (.app bundle — directory, must be zipped)
-      - name: Create App ZIP (macOS)
+      # macOS: zip the .app bundle (directory, must be archived)
+      - name: Package portable (macOS)
         if: runner.os == 'macOS'
         run: |
           echo "=== build/ contents ===" && ls build/
@@ -79,26 +50,26 @@ jobs:
           cd "$BUILD_DIR"
           zip -r ../../CBXTool.app.zip *.app
 
-      # Windows Specific: ZIP (exe needs lib/ and Resources/ alongside it)
-      - name: Create Portable ZIP (Windows)
+      # Windows: rename launcher, zip the app folder
+      - name: Package portable (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          Write-Host "=== build/ contents ===" && Get-ChildItem build/
+          echo "=== build/ contents ===" && Get-ChildItem build/
           $buildDir = (Get-ChildItem -Directory build/ | Where-Object { $_.Name -like "stable-win*" } | Select-Object -First 1).FullName
-          Write-Host "=== Using: $buildDir ===" && Get-ChildItem $buildDir
-          $appDir = (Get-ChildItem -Directory $buildDir | Select-Object -First 1).FullName
-          Write-Host "=== App dir: $appDir ===" && Get-ChildItem $appDir
-          $launcher = Join-Path $appDir "bin\launcher.exe"
-          $renamed  = Join-Path $appDir "bin\CBX-Tool.exe"
-          Move-Item $launcher $renamed
+          $appDir   = (Get-ChildItem -Directory $buildDir | Select-Object -First 1).FullName
+          echo "=== App dir: $appDir ===" && Get-ChildItem $appDir
+          $binDir = Join-Path $appDir "bin"
+          echo "=== bin/ contents ===" && Get-ChildItem $binDir
+          $launcher = Get-ChildItem $binDir -Filter "*.exe" | Select-Object -First 1
+          Rename-Item $launcher.FullName "CBX-Tool.exe"
           Compress-Archive -Path "$appDir\*" -DestinationPath CBX-Tool-Windows.zip
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            CBX-Tool-x86_64.AppImage
+            CBX-Tool-Linux.tar.zst
             CBXTool.app.zip
             CBX-Tool-Windows.zip
         env:
