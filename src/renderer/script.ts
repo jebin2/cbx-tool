@@ -215,7 +215,7 @@ function selectPage(index: number, skipScrollBehavior = false) {
   // Update selected class in the page list and scroll it into view
   document.querySelectorAll(".page-item").forEach((item, i) => {
     item.classList.toggle("selected", i === index);
-    if (i === index && !skipScrollBehavior) {
+    if (i === index) {
       (item as HTMLElement).scrollIntoView({ block: "nearest" });
     }
   });
