@@ -73,6 +73,9 @@ jobs:
       - name: List artifacts
         shell: pwsh
         run: Get-ChildItem artifacts/ -Recurse
+      - name: Install NSIS
+        run: choco install nsis -y --no-progress
+
       - name: Build single-file installer (NSIS)
         shell: pwsh
         run: |
