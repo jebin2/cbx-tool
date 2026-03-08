@@ -20,9 +20,6 @@ export default {
       "src/renderer/index.html": "views/mainview/index.html",
       "src/renderer/style.css": "views/mainview/style.css",
     },
-    linux: {
-      bundleCEF: true,
-    },
   },
   runtime: {
     exitOnLastWindowClosed: true,
