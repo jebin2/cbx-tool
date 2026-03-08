@@ -37,58 +37,55 @@ jobs:
         run: |
           mkdir -p AppDir
           cp -r build/stable-linux-x64/CBXTool/* AppDir/
-          
-          # Create Desktop file
-          cat > AppDir/CBXTool.desktop <<EOF
-          [Desktop Entry]
-          Name=CBX Tool
-          Exec=bin/launcher
-          Icon=icon
-          Type=Application
-          Categories=Graphics;
-          EOF
-          
+
           # Copy icon
           cp resources/icon.png AppDir/icon.png
-          
+
+          # Create Desktop file
+          cat > AppDir/CBXTool.desktop << 'EOF'
+[Desktop Entry]
+Name=CBX Tool
+Exec=bin/launcher
+Icon=icon
+Type=Application
+Categories=Graphics;
+EOF
+
           # Create AppRun
-          cat > AppDir/AppRun <<EOF
-          #!/bin/sh
-          HERE="\$(dirname "\$(readlink -f "\${0}")")"
-          export LD_LIBRARY_PATH="\$HERE/lib:\$LD_LIBRARY_PATH"
-          exec "\$HERE/bin/launcher" "\$@"
-          EOF
+          cat > AppDir/AppRun << 'EOF'
+#!/bin/sh
+HERE="$(dirname "$(readlink -f "${0}")")"
+export LD_LIBRARY_PATH="$HERE/lib:$LD_LIBRARY_PATH"
+exec "$HERE/bin/launcher" "$@"
+EOF
           chmod +x AppDir/AppRun
-          
+
           # Download and run appimagetool
           curl -LO https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
           chmod +x appimagetool-x86_64.AppImage
-          ./appimagetool-x86_64.AppImage AppDir CBX-Tool-x86_64.AppImage
+          APPIMAGE_EXTRACT_AND_RUN=1 ./appimagetool-x86_64.AppImage AppDir CBX-Tool-x86_64.AppImage
 
-      # macOS Specific: ZIP (.app)
-      - name: Create Portable ZIP (macOS)
+      # macOS Specific: ZIP (.app bundle — directory, must be zipped)
+      - name: Create App ZIP (macOS)
         if: runner.os == 'macOS'
         run: |
           cd build/stable-macos-arm64/
-          zip -v -r ../../CBX-Tool-macOS-Portable.app.zip CBXTool.app
+          zip -r ../../CBXTool.app.zip CBXTool.app
 
-      # Windows Specific: ZIP (.exe Portable)
+      # Windows Specific: ZIP (exe needs lib/ and Resources/ alongside it)
       - name: Create Portable ZIP (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          # Rename launcher to app name
           Move-Item build/stable-win-x64/CBXTool/bin/launcher.exe build/stable-win-x64/CBXTool/bin/CBX-Tool.exe
-          # Create zip of the folder
-          Compress-Archive -Path build/stable-win-x64/CBXTool/* -DestinationPath CBX-Tool-Windows-Portable.zip
+          Compress-Archive -Path build/stable-win-x64/CBXTool/* -DestinationPath CBX-Tool-Windows.zip
 
       - name: Create Release
-        if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v1
         with:
           files: |
             CBX-Tool-x86_64.AppImage
-            CBX-Tool-macOS-Portable.app.zip
-            CBX-Tool-Windows-Portable.zip
+            CBXTool.app.zip
+            CBX-Tool-Windows.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
