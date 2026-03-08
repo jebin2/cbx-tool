@@ -15,8 +15,13 @@ const saveBtn = document.getElementById("saveBtn") as HTMLButtonElement;
 const pageList = document.getElementById("pageList") as HTMLDivElement;
 const pageCount = document.getElementById("pageCount") as HTMLSpanElement;
 const dropZone = document.getElementById("dropZone") as HTMLDivElement;
-const previewImage = document.getElementById("previewImage") as HTMLImageElement;
+const previewContainer = document.getElementById("previewContainer") as HTMLDivElement;
+const prevImage = document.getElementById("prevImage") as HTMLImageElement;
+const currentImage = document.getElementById("currentImage") as HTMLImageElement;
+const nextImage = document.getElementById("nextImage") as HTMLImageElement;
 const loader = document.getElementById("loader") as HTMLDivElement;
+
+let isScrollingProgrammatically = false;
 
 async function initRPC() {
   try {
@@ -80,7 +85,7 @@ async function openComicFile(file: File, filePath?: string) {
 
       currentFile = arrayBuffer;
       dropZone.classList.add("hidden");
-      previewImage.classList.remove("hidden");
+      previewContainer.classList.remove("hidden");
 
       const sidebar = document.querySelector(".sidebar");
       if (sidebar) sidebar.classList.remove("hidden");
@@ -181,15 +186,38 @@ function renderPageList() {
   });
 }
 
-function selectPage(index: number) {
+function selectPage(index: number, skipScrollBehavior = false) {
+  if (index < 0 || index >= pages.length) return;
   selectedPageIndex = index;
-  if (pages[index]) {
-    previewImage.src = pages[index].url;
+
+  // Clear images first to prevent flashing old content
+  prevImage.removeAttribute('src');
+  currentImage.removeAttribute('src');
+  nextImage.removeAttribute('src');
+
+  // Set sources for the three image elements
+  if (pages[index - 1]) prevImage.src = pages[index - 1].url;
+  if (pages[index]) currentImage.src = pages[index].url;
+  if (pages[index + 1]) nextImage.src = pages[index + 1].url;
+
+  const viewer = document.querySelector(".viewer");
+  const isZoomed = previewContainer.classList.contains("zoomed");
+
+  if (viewer && isZoomed && !skipScrollBehavior) {
+    // When manually selecting a page while zoomed, scroll to the top of the current image
+    isScrollingProgrammatically = true;
+    requestAnimationFrame(() => {
+      viewer.scrollTo({ top: currentImage.offsetTop, behavior: "instant" });
+      setTimeout(() => { isScrollingProgrammatically = false; }, 50);
+    });
   }
 
+  // Update selected class in the page list and scroll it into view
   document.querySelectorAll(".page-item").forEach((item, i) => {
     item.classList.toggle("selected", i === index);
-    if (i === index) (item as HTMLElement).scrollIntoView({ block: "nearest" });
+    if (i === index && !skipScrollBehavior) {
+      (item as HTMLElement).scrollIntoView({ block: "nearest" });
+    }
   });
 }
 
@@ -327,22 +355,83 @@ dropZone.addEventListener("drop", (e) => {
   }
 });
 
+// Handle infinite scrolling up/down logic
+const viewerNode = document.querySelector(".viewer");
+if (viewerNode) {
+  viewerNode.addEventListener("scroll", () => {
+    if (!previewContainer.classList.contains("zoomed") || isScrollingProgrammatically) return;
+
+    const st = viewerNode.scrollTop;
+    const currentTop = currentImage.offsetTop;
+    const currentBottom = currentTop + currentImage.offsetHeight;
+
+    // If we scroll deep into the next image
+    if (st > currentBottom - 200 && selectedPageIndex < pages.length - 1) {
+      isScrollingProgrammatically = true;
+      const offset = st - currentBottom;
+      selectPage(selectedPageIndex + 1, true);
+      // Adjust scroll to make it seamless
+      requestAnimationFrame(() => {
+        viewerNode.scrollTo({ top: currentImage.offsetTop + offset, behavior: "instant" });
+        setTimeout(() => { isScrollingProgrammatically = false; }, 50);
+      });
+    }
+    // If we scroll high into the previous image
+    else if (st < currentTop - 200 && selectedPageIndex > 0) {
+      isScrollingProgrammatically = true;
+      selectPage(selectedPageIndex - 1, true);
+      // Adjust scroll to make it seamless
+      requestAnimationFrame(() => {
+        // The new currentImage is the old prevImage, so scroll down by its height to maintain position relative to the top of the old currentImage
+        viewerNode.scrollTo({ top: viewerNode.scrollTop + currentImage.offsetHeight, behavior: "instant" });
+        setTimeout(() => { isScrollingProgrammatically = false; }, 50);
+      });
+    }
+  });
+}
+
 document.addEventListener("keydown", (e) => {
   if (!pages.length) return;
-  if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+  const viewer = document.querySelector(".viewer");
+  const isZoomed = previewContainer.classList.contains("zoomed");
+
+  if (e.key === "ArrowRight") {
     if (selectedPageIndex < pages.length - 1) selectPage(selectedPageIndex + 1);
-  } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+  } else if (e.key === "ArrowLeft") {
     if (selectedPageIndex > 0) selectPage(selectedPageIndex - 1);
+  } else if (e.key === "ArrowDown") {
+    if (isZoomed && viewer) {
+      e.preventDefault();
+      viewer.scrollBy({ top: 100, behavior: "smooth" });
+    } else {
+      if (selectedPageIndex < pages.length - 1) selectPage(selectedPageIndex + 1);
+    }
+  } else if (e.key === "ArrowUp") {
+    if (isZoomed && viewer) {
+      e.preventDefault();
+      viewer.scrollBy({ top: -100, behavior: "smooth" });
+    } else {
+      if (selectedPageIndex > 0) selectPage(selectedPageIndex - 1);
+    }
   } else if (e.key === "Delete" || e.key === "x") {
     togglePage(selectedPageIndex);
   }
 });
 
-previewImage.addEventListener("dblclick", () => {
-  previewImage.classList.toggle("zoomed");
+previewContainer.addEventListener("dblclick", () => {
+  previewContainer.classList.toggle("zoomed");
   const viewer = document.querySelector(".viewer");
   if (viewer) {
     viewer.classList.toggle("zoomed");
+    if (!previewContainer.classList.contains("zoomed")) {
+      viewer.scrollTo({ top: 0 }); // reset scroll
+    } else {
+      // if entering zoom mode, focus the current image
+      isScrollingProgrammatically = true;
+      requestAnimationFrame(() => {
+        viewer.scrollTo({ top: currentImage.offsetTop, behavior: "instant" });
+        setTimeout(() => { isScrollingProgrammatically = false; }, 50);
+      });
+    }
   }
 });
-
