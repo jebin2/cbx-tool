@@ -73,14 +73,21 @@ jobs:
       - name: List artifacts
         shell: pwsh
         run: Get-ChildItem artifacts/ -Recurse
-      - name: Collect Setup zip
+      - name: Build single-file installer (7-Zip SFX)
         shell: pwsh
         run: |
           $src = Get-ChildItem artifacts/ -Filter "*Setup.zip" | Select-Object -First 1
           Write-Host "=== Using: $($src.FullName) ==="
-          Copy-Item $src.FullName "CBX-Tool-Windows-Setup.zip"
+          Copy-Item $src.FullName "setup.zip"
+
+          $sfxConfig = ";!@Install@!UTF-8!`nTitle=`"CBX Tool`"`nRunProgram=`"CBX Tool-Setup.exe`"`n;!@InstallEnd@!"
+          [System.IO.File]::WriteAllText("sfx_config.txt", $sfxConfig)
+
+          $sfxModule = "C:\Program Files\7-Zip\7z.sfx"
+          cmd /c "copy /b `"$sfxModule`" + sfx_config.txt + setup.zip CBX-Tool-Windows-Installer.exe"
+          Write-Host "=== Created: $(Get-Item CBX-Tool-Windows-Installer.exe | Select-Object Name, Length) ==="
       - uses: softprops/action-gh-release@v1
         with:
-          files: CBX-Tool-Windows-Setup.zip
+          files: CBX-Tool-Windows-Installer.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
