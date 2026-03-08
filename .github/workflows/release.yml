@@ -88,13 +88,8 @@ jobs:
 
           & "C:\Program Files\7-Zip\7z.exe" x $src.FullName -o"setup_extracted"
 
-          # Convert PNG to ICO for NSIS installer icon
-          Add-Type -AssemblyName System.Drawing
-          $png = [System.Drawing.Image]::FromFile((Resolve-Path "resources/icon-transparent.png"))
-          $ico = New-Object System.Drawing.Icon($png, 256, 256)
-          $stream = [System.IO.File]::OpenWrite("installer-icon.ico")
-          $ico.Save($stream)
-          $stream.Close()
+          # Convert PNG to ICO using ImageMagick (pre-installed on GitHub runners)
+          magick resources/icon-transparent.png -define icon:auto-resize=256,128,64,48,32,16 installer-icon.ico
 
           Copy-Item scripts/installer.nsi installer.nsi
           & "C:\Program Files (x86)\NSIS\makensis.exe" /DICON_PATH=installer-icon.ico installer.nsi
