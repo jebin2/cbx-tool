@@ -67,9 +67,6 @@ function isImageFile(filename: string): boolean {
   return imageExtensions.includes(ext);
 }
 
-function naturalSort(a: string, b: string): number {
-  return a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" });
-}
 
 async function openComicFile(file: File, filePath?: string) {
   try {
@@ -79,7 +76,22 @@ async function openComicFile(file: File, filePath?: string) {
     const ext = file.name.toLowerCase().slice(file.name.lastIndexOf("."));
 
     if (ext === ".cbz") {
-      await loadCbz(arrayBuffer);
+      const loadRest = await loadCbz(arrayBuffer);
+
+      currentFile = arrayBuffer;
+      dropZone.classList.add("hidden");
+      previewImage.classList.remove("hidden");
+      saveBtn.disabled = false;
+      renderPageList();
+
+      if (pages.length > 0) {
+        selectPage(0);
+      }
+      loader.classList.add("hidden");
+
+      // Load remaining pages in the background after UI is shown
+      loadRest();
+      return;
     } else if (ext === ".cbr") {
       alert("CBR support coming soon! Please use CBZ files for now.");
       loader.classList.add("hidden");
@@ -90,16 +102,6 @@ async function openComicFile(file: File, filePath?: string) {
       return;
     }
 
-    currentFile = arrayBuffer;
-    dropZone.classList.add("hidden");
-    previewImage.classList.remove("hidden");
-    saveBtn.disabled = false;
-    renderPageList();
-    
-    if (pages.length > 0) {
-      selectPage(0);
-    }
-    loader.classList.add("hidden");
   } catch (error) {
     console.error("Error opening file:", error);
     alert("Error opening file: " + (error as Error).message);
@@ -107,7 +109,7 @@ async function openComicFile(file: File, filePath?: string) {
   }
 }
 
-async function loadCbz(arrayBuffer: ArrayBuffer) {
+async function loadCbz(arrayBuffer: ArrayBuffer): Promise<() => Promise<void>> {
   const zip = await JSZip.loadAsync(arrayBuffer);
   const imageFiles: string[] = [];
 
@@ -117,19 +119,25 @@ async function loadCbz(arrayBuffer: ArrayBuffer) {
     }
   }
 
-  imageFiles.sort(naturalSort);
-
   pages = [];
-  for (const filename of imageFiles) {
-    const file = zip.files[filename];
-    const blob = await file.async("blob");
-    const url = URL.createObjectURL(blob);
-    pages.push({
-      filename,
-      url,
-      blob,
+
+  if (imageFiles.length === 0) return async () => {};
+
+  // Load first page immediately so UI can show instantly
+  const firstBlob = await zip.files[imageFiles[0]].async("blob");
+  pages.push({ filename: imageFiles[0], url: URL.createObjectURL(firstBlob), blob: firstBlob });
+
+  // Return a function to load the remaining pages in the background
+  return async () => {
+    if (imageFiles.length <= 1) return;
+    const restBlobs = await Promise.all(
+      imageFiles.slice(1).map((filename) => zip.files[filename].async("blob"))
+    );
+    imageFiles.slice(1).forEach((filename, i) => {
+      pages.push({ filename, url: URL.createObjectURL(restBlobs[i]), blob: restBlobs[i] });
     });
-  }
+    renderPageList();
+  };
 }
 
 function renderPageList() {
@@ -140,7 +148,7 @@ function renderPageList() {
     const item = document.createElement("div");
     item.className = "page-item" + (index === selectedPageIndex ? " selected" : "");
     item.innerHTML = `
-      <img src="${page.url}" alt="Page ${index + 1}">
+      <img src="${page.url}" alt="Page ${index + 1}" loading="lazy">
       <div class="page-info">
         <div class="page-name">${page.filename}</div>
       </div>
