@@ -3,7 +3,7 @@ import JSZip from "jszip";
 let currentFile: ArrayBuffer | null = null;
 let currentFileName = "";
 let currentFilePath: string | null = null;
-let pages: { filename: string; url: string; blob: Blob }[] = [];
+let pages: { filename: string; url: string; blob: Blob; disabled: boolean }[] = [];
 let selectedPageIndex = -1;
 
 let rpc: any = null;
@@ -125,7 +125,7 @@ async function loadCbz(arrayBuffer: ArrayBuffer): Promise<() => Promise<void>> {
 
   // Load first page immediately so UI can show instantly
   const firstBlob = await zip.files[imageFiles[0]].async("blob");
-  pages.push({ filename: imageFiles[0], url: URL.createObjectURL(firstBlob), blob: firstBlob });
+  pages.push({ filename: imageFiles[0], url: URL.createObjectURL(firstBlob), blob: firstBlob, disabled: false });
 
   // Return a function to load the remaining pages in the background
   return async () => {
@@ -134,7 +134,7 @@ async function loadCbz(arrayBuffer: ArrayBuffer): Promise<() => Promise<void>> {
       imageFiles.slice(1).map((filename) => zip.files[filename].async("blob"))
     );
     imageFiles.slice(1).forEach((filename, i) => {
-      pages.push({ filename, url: URL.createObjectURL(restBlobs[i]), blob: restBlobs[i] });
+      pages.push({ filename, url: URL.createObjectURL(restBlobs[i]), blob: restBlobs[i], disabled: false });
     });
     renderPageList();
   };
@@ -142,30 +142,33 @@ async function loadCbz(arrayBuffer: ArrayBuffer): Promise<() => Promise<void>> {
 
 function renderPageList() {
   pageList.innerHTML = "";
-  pageCount.textContent = `${pages.length} pages`;
+  const activeCount = pages.filter((p) => !p.disabled).length;
+  pageCount.textContent = `${activeCount}/${pages.length} pages`;
   
   pages.forEach((page, index) => {
     const item = document.createElement("div");
-    item.className = "page-item" + (index === selectedPageIndex ? " selected" : "");
+    item.className = "page-item" +
+      (index === selectedPageIndex ? " selected" : "") +
+      (page.disabled ? " page-disabled" : "");
     item.innerHTML = `
       <img src="${page.url}" alt="Page ${index + 1}" loading="lazy">
       <div class="page-info">
         <div class="page-name">${page.filename}</div>
       </div>
-      <button class="remove-btn" data-index="${index}">Remove</button>
+      <button class="remove-btn" data-index="${index}">${page.disabled ? "Add" : "Remove"}</button>
     `;
-    
+
     item.addEventListener("click", (e) => {
       if (!(e.target as HTMLElement).classList.contains("remove-btn")) {
         selectPage(index);
       }
     });
-    
+
     item.querySelector(".remove-btn")?.addEventListener("click", (e) => {
       e.stopPropagation();
-      removePage(index);
+      togglePage(index);
     });
-    
+
     pageList.appendChild(item);
   });
 }
@@ -175,51 +178,39 @@ function selectPage(index: number) {
   if (pages[index]) {
     previewImage.src = pages[index].url;
   }
-  
+
   document.querySelectorAll(".page-item").forEach((item, i) => {
     item.classList.toggle("selected", i === index);
+    if (i === index) (item as HTMLElement).scrollIntoView({ block: "nearest" });
   });
 }
 
-function removePage(index: number) {
+function togglePage(index: number) {
   if (index < 0 || index >= pages.length) return;
-  
-  const page = pages[index];
-  URL.revokeObjectURL(page.url);
-  pages.splice(index, 1);
-  
-  if (selectedPageIndex >= pages.length) {
-    selectedPageIndex = pages.length - 1;
-  }
-  
+  pages[index].disabled = !pages[index].disabled;
   renderPageList();
-  
-  if (pages.length > 0) {
-    selectPage(selectedPageIndex);
-  } else {
-    previewImage.src = "";
-    previewImage.classList.add("hidden");
-    dropZone.classList.remove("hidden");
-  }
+  selectPage(selectedPageIndex);
 }
 
 async function saveComic() {
   if (!pages.length) return;
-  
+
   try {
     const zip = new JSZip();
-    
+
     for (const page of pages) {
-      zip.file(page.filename, page.blob);
+      if (!page.disabled) zip.file(page.filename, page.blob);
     }
-    
+
     const arrayBuffer = await zip.generateAsync({ type: "arraybuffer" });
-    
-    let savePath = currentFilePath;
-    
-    if (!savePath) {
-      const ext = currentFileName.toLowerCase().slice(currentFileName.lastIndexOf("."));
-      const baseName = currentFileName.slice(0, currentFileName.lastIndexOf("."));
+
+    const ext = currentFileName.toLowerCase().slice(currentFileName.lastIndexOf("."));
+    const baseName = currentFileName.slice(0, currentFileName.lastIndexOf("."));
+
+    let savePath: string;
+    if (currentFilePath) {
+      savePath = currentFilePath.slice(0, currentFilePath.lastIndexOf(".")) + `_modified${ext}`;
+    } else {
       savePath = `${baseName}_modified${ext}`;
     }
     
@@ -316,9 +307,20 @@ dropZone.addEventListener("dragleave", () => {
 dropZone.addEventListener("drop", (e) => {
   e.preventDefault();
   dropZone.classList.remove("dragover");
-  
+
   const file = e.dataTransfer.files[0];
   if (file) {
     openComicFile(file);
+  }
+});
+
+document.addEventListener("keydown", (e) => {
+  if (!pages.length) return;
+  if (e.key === "ArrowRight") {
+    if (selectedPageIndex < pages.length - 1) selectPage(selectedPageIndex + 1);
+  } else if (e.key === "ArrowLeft") {
+    if (selectedPageIndex > 0) selectPage(selectedPageIndex - 1);
+  } else if (e.key === "Delete") {
+    togglePage(selectedPageIndex);
   }
 });

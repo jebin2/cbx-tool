@@ -159,6 +159,18 @@ button.primary:hover:not(:disabled) {
   background: #dd4444;
 }
 
+.page-item.page-disabled {
+  opacity: 0.4;
+}
+
+.page-item.page-disabled .remove-btn {
+  background: #336633;
+}
+
+.page-item.page-disabled .remove-btn:hover {
+  background: #448844;
+}
+
 .viewer {
   flex: 1;
   display: flex;
