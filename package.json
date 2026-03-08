@@ -4,7 +4,8 @@
   "type": "module",
   "dependencies": {
     "electrobun": "^1.0.0",
-    "jszip": "^3.10.1"
+    "jszip": "^3.10.1",
+    "node-unrar-js": "^2.0.2"
   },
   "scripts": {
     "start": "electrobun dev",

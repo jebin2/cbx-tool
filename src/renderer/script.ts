@@ -11,7 +11,10 @@ let binaryConfig: { port: number; token: string } | null = null;
 
 const fileInput = document.getElementById("fileInput") as HTMLInputElement;
 const openBtn = document.getElementById("openBtn") as HTMLButtonElement;
+const openFolderBtn = document.getElementById("openFolderBtn") as HTMLButtonElement;
 const saveBtn = document.getElementById("saveBtn") as HTMLButtonElement;
+const extractBtn = document.getElementById("extractBtn") as HTMLButtonElement;
+let isFolderMode = false;
 const pageList = document.getElementById("pageList") as HTMLDivElement;
 const pageCount = document.getElementById("pageCount") as HTMLSpanElement;
 const dropZone = document.getElementById("dropZone") as HTMLDivElement;
@@ -39,10 +42,29 @@ async function initRPC() {
             response: { canceled: boolean; filePath?: string };
           };
           showOpenDialog: {
-            params: Record<string, never>;
+            params: { canChooseDirectory?: boolean };
             response: { canceled: boolean; filePaths: string[] };
           };
+          extractCBR: {
+            params: { filePath: string };
+            response: { success: boolean; error?: string; files: { name: string; path: string }[] };
+          };
+          readFolder: {
+            params: { folderPath: string };
+            response: { success: boolean; error?: string; files: { name: string; path: string }[] };
+          };
+          extractArchiveToFolder: {
+            params: { sourcePath: string; destinationPath: string; type: 'cbz' | 'cbr' };
+            response: { success: boolean; error?: string };
+          };
         };
+        messages: {};
+        push: {};
+      };
+      webview: {
+        requests: {};
+        messages: {};
+        push: {};
       };
     };
 
@@ -73,10 +95,11 @@ function isImageFile(filename: string): boolean {
 }
 
 
-async function openComicFile(file: File, filePath?: string) {
+async function openComicFile(file: any, filePath?: string) {
   try {
     currentFileName = file.name;
-    currentFilePath = filePath || null;
+    currentFilePath = filePath || file.path || null;
+    console.log(`[Frontend] openComicFile: ${currentFileName}, path: ${currentFilePath}`);
     const arrayBuffer = await file.arrayBuffer();
     const ext = file.name.toLowerCase().slice(file.name.lastIndexOf("."));
 
@@ -94,6 +117,7 @@ async function openComicFile(file: File, filePath?: string) {
       if (toolbar) toolbar.classList.remove("hidden");
 
       saveBtn.disabled = false;
+      extractBtn.disabled = false;
       renderPageList();
 
       if (pages.length > 0) {
@@ -105,7 +129,66 @@ async function openComicFile(file: File, filePath?: string) {
       loadRest();
       return;
     } else if (ext === ".cbr") {
-      alert("CBR support coming soon! Please use CBZ files for now.");
+      if (!currentFilePath) {
+        console.error(`[Frontend] currentFilePath is missing for CBR. Drop might not provide path.`);
+        alert("Cannot open CBR file from drop natively in this environment. Please click 'Open' and select it instead.");
+        loader.classList.add("hidden");
+        return;
+      }
+
+      console.log(`[Frontend] Extraction starting for: ${currentFilePath}`);
+      const response = await rpc.request.extractCBR({ filePath: currentFilePath });
+      console.log(`[Frontend] Extraction response success: ${response.success}`);
+
+      if (!response.success) {
+        console.error(`[Frontend] Extraction error:`, response.error);
+        alert("Error extracting CBR: " + response.error);
+        loader.classList.add("hidden");
+        return;
+      }
+
+      pages = [];
+      const extractedFiles = response.files;
+      console.log(`[Frontend] Received ${extractedFiles.length} file paths from backend`);
+
+      if (extractedFiles.length > 0) {
+        // Fetch all images in parallel for better performance
+        const fetchPromises = extractedFiles.map(async (file: { name: string, path: string }, index: number) => {
+          try {
+            const readUrl = `http://localhost:${binaryConfig!.port}/file?path=${encodeURIComponent(file.path)}&token=${binaryConfig!.token}`;
+            const res = await fetch(readUrl);
+            if (!res.ok) throw new Error(`Fetch failed: ${res.statusText}`);
+            const blob = await res.blob();
+            if (index === 0) console.log(`[Frontend] Successfully fetched first image: ${file.name}`);
+            return { filename: file.name, url: URL.createObjectURL(blob), blob, disabled: false };
+          } catch (err) {
+            console.error(`[Frontend] Failed to fetch image ${file.name}:`, err);
+            throw err;
+          }
+        });
+
+        pages = await Promise.all(fetchPromises);
+        console.log(`[Frontend] All ${pages.length} images fetched and converted to URLs`);
+
+        currentFile = arrayBuffer;
+        dropZone.classList.add("hidden");
+        previewContainer.classList.remove("hidden");
+
+        const sidebar = document.querySelector(".sidebar");
+        if (sidebar) sidebar.classList.remove("hidden");
+
+        const toolbar = document.querySelector(".toolbar");
+        if (toolbar) toolbar.classList.remove("hidden");
+
+        saveBtn.disabled = false;
+        extractBtn.disabled = false;
+        renderPageList();
+
+        if (pages.length > 0) {
+          selectPage(0);
+        }
+      }
+
       loader.classList.add("hidden");
       return;
     } else {
@@ -243,14 +326,26 @@ async function saveComic() {
 
     const arrayBuffer = await zip.generateAsync({ type: "arraybuffer" });
 
-    const ext = currentFileName.toLowerCase().slice(currentFileName.lastIndexOf("."));
-    const baseName = currentFileName.slice(0, currentFileName.lastIndexOf("."));
-
-    let savePath: string;
-    if (currentFilePath) {
-      savePath = currentFilePath.slice(0, currentFilePath.lastIndexOf(".")) + `_modified${ext}`;
+    let defaultSaveName = currentFileName;
+    if (isFolderMode) {
+      if (!defaultSaveName.toLowerCase().endsWith(".cbz")) {
+        defaultSaveName += ".cbz";
+      }
     } else {
-      savePath = `${baseName}_modified${ext}`;
+      const ext = currentFileName.toLowerCase().slice(currentFileName.lastIndexOf("."));
+      const baseName = currentFileName.slice(0, currentFileName.lastIndexOf("."));
+      if (ext === ".cbr") {
+        defaultSaveName = baseName + ".cbz";
+      } else {
+        defaultSaveName = baseName + "_modified.cbz";
+      }
+    }
+
+    let defaultPath = defaultSaveName;
+    if (currentFilePath && !isFolderMode) {
+      const lastSlash = Math.max(currentFilePath.lastIndexOf('\\'), currentFilePath.lastIndexOf('/'));
+      const dir = currentFilePath.slice(0, lastSlash + 1);
+      defaultPath = dir + defaultSaveName;
     }
 
     if (!rpc) {
@@ -259,15 +354,14 @@ async function saveComic() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = savePath || "comic.cbz";
+      a.download = defaultSaveName;
       a.click();
       URL.revokeObjectURL(url);
-      alert(`Saved as ${savePath}`);
       return;
     }
 
     const result = await rpc.request.showSaveDialog({
-      defaultPath: savePath || "comic.cbz"
+      defaultPath: defaultPath
     });
 
     if (result.canceled || !result.filePath) {
@@ -282,8 +376,6 @@ async function saveComic() {
     });
 
     if (response.ok) {
-      currentFilePath = result.filePath;
-      currentFileName = result.filePath.split(/[\\/]/).pop() || currentFileName;
       alert(`Saved to ${result.filePath}`);
     } else {
       const errorData = await response.json();
@@ -298,23 +390,32 @@ async function saveComic() {
 openBtn.addEventListener("click", async () => {
   if (rpc && binaryConfig) {
     try {
-      const result = await rpc.request.showOpenDialog();
+      const result = await rpc.request.showOpenDialog({ canChooseDirectory: false });
       if (result.canceled || result.filePaths.length === 0) return;
 
       const filePath = result.filePaths[0];
+      const fileName = filePath.split(/[\\/]/).pop() || "";
 
-      // Show loader immediately after dialog closes
+      isFolderMode = false;
+      saveBtn.innerHTML = `
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round">
+          <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+          <polyline points="17 21 17 13 7 13 7 21" />
+          <polyline points="7 3 7 8 15 8" />
+        </svg>
+        Save
+      `;
+
       loader.classList.remove("hidden");
       await new Promise(resolve => setTimeout(resolve, 10));
 
-      // High performance read via Binary Bridge
       const readUrl = `http://localhost:${binaryConfig.port}/file?path=${encodeURIComponent(filePath)}&token=${binaryConfig.token}`;
       const response = await fetch(readUrl);
       const blob = await response.blob();
 
-      const file = new File([blob], filePath.split(/[\\/]/).pop() || "comic.cbz", { type: "application/zip" });
+      const file = new File([blob], fileName, { type: "application/zip" });
       await openComicFile(file, filePath);
-      return;
     } catch (error) {
       console.error("RPC open failed:", error);
       loader.classList.add("hidden");
@@ -325,14 +426,125 @@ openBtn.addEventListener("click", async () => {
   }
 });
 
-fileInput.addEventListener("change", (e) => {
-  const file = (e.target as HTMLInputElement).files?.[0];
-  if (file) {
-    openComicFile(file);
+openFolderBtn.addEventListener("click", async () => {
+  if (rpc && binaryConfig) {
+    try {
+      const result = await rpc.request.showOpenDialog({ canChooseDirectory: true });
+      if (result.canceled || result.filePaths.length === 0) return;
+
+      const folderPath = result.filePaths[0];
+      const folderName = folderPath.split(/[\\/]/).filter(Boolean).pop() || "Images";
+
+      currentFileName = folderName;
+      currentFilePath = folderPath;
+      isFolderMode = true;
+
+      saveBtn.innerHTML = `
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round">
+          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l2 3h9a2 2 0 0 1 2 2z" />
+          <polyline points="12 11 12 17M9 14l3 3 3-3" />
+        </svg>
+        Convert to CBZ
+      `;
+
+      loader.classList.remove("hidden");
+      await new Promise(resolve => setTimeout(resolve, 10));
+
+      const response = await rpc.request.readFolder({ folderPath });
+
+      if (response.success) {
+        // Fetch images in parallel
+        const fetchPromises = response.files.map(async (file: any) => {
+          const readUrl = `http://localhost:${binaryConfig!.port}/file?path=${encodeURIComponent(file.path)}&token=${binaryConfig!.token}`;
+          const res = await fetch(readUrl);
+          const blob = await res.blob();
+          return { filename: file.name, url: URL.createObjectURL(blob), blob, disabled: false };
+        });
+
+        pages = await Promise.all(fetchPromises);
+
+        if (pages.length > 0) {
+          selectedPageIndex = 0;
+          dropZone.classList.add("hidden");
+          previewContainer.classList.remove("hidden");
+          document.querySelector(".sidebar")?.classList.remove("hidden");
+          document.querySelector(".toolbar")?.classList.remove("hidden");
+          saveBtn.disabled = false;
+          extractBtn.disabled = true;
+          renderPageList();
+          selectPage(0);
+        } else {
+          alert("No images found in the selected folder.");
+        }
+      } else {
+        alert("Error reading folder: " + response.error);
+      }
+      loader.classList.add("hidden");
+    } catch (error) {
+      console.error("Folder open failed:", error);
+      loader.classList.add("hidden");
+    }
+  } else {
+    alert("Folder selection is only supported in the desktop app.");
   }
 });
 
 saveBtn.addEventListener("click", saveComic);
+
+extractBtn.addEventListener("click", async () => {
+  if (!currentFilePath) {
+    alert("File path not detected. Please open using the 'Open' button.");
+    return;
+  }
+
+  const ext = currentFilePath.toLowerCase().slice(currentFilePath.lastIndexOf("."));
+  const type = ext === ".cbr" ? "cbr" : "cbz";
+
+  let result;
+  try {
+    console.log(`[Frontend] Requesting folder picker for extraction...`);
+    result = await rpc.request.showOpenDialog({
+      canChooseDirectory: true
+    });
+  } catch (rpcErr) {
+    console.error(`[Frontend] RPC showOpenDialog failed:`, rpcErr);
+    alert("System error: Could not open folder picker. See console for details.");
+    return;
+  }
+
+  const { canceled, filePaths } = result;
+  if (canceled || !filePaths || filePaths.length === 0) {
+    console.log(`[Frontend] Extraction target selection canceled.`);
+    return;
+  }
+
+  const destinationPath = filePaths[0];
+  if (!destinationPath) {
+    console.error(`[Frontend] Selected folder path is empty.`);
+    return;
+  }
+
+  loader.classList.remove("hidden");
+  try {
+    const response = await rpc.request.extractArchiveToFolder({
+      sourcePath: currentFilePath,
+      destinationPath,
+      type
+    });
+
+    if (response.success) {
+      alert("Successfully extracted to: " + destinationPath);
+    } else {
+      alert("Extraction failed: " + response.error);
+    }
+  } catch (err) {
+    console.error("Extraction error:", err);
+    alert("Error during extraction: " + err);
+  } finally {
+    loader.classList.add("hidden");
+  }
+});
 
 
 dropZone.addEventListener("dragover", (e) => {
@@ -352,9 +564,10 @@ dropZone.addEventListener("drop", (e) => {
   e.preventDefault();
   dropZone.classList.remove("dragover");
 
-  const file = e.dataTransfer.files[0];
+  const file = e.dataTransfer?.files[0];
   if (file) {
-    openComicFile(file);
+    const filePath = (file as any).path;
+    openComicFile(file, filePath);
   }
 });
 

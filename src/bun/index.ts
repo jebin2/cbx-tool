@@ -11,7 +11,7 @@ const server = Bun.serve({
   async fetch(req) {
     const url = new URL(req.url);
     const token = url.searchParams.get("token");
-    
+
     // Set up CORS headers
     const headers = new Headers({
       "Access-Control-Allow-Origin": "*",
@@ -23,7 +23,7 @@ const server = Bun.serve({
     if (req.method === "OPTIONS") {
       return new Response(null, { headers });
     }
-    
+
     if (token !== securityToken) {
       return new Response("Unauthorized", { status: 401, headers });
     }
@@ -36,7 +36,7 @@ const server = Bun.serve({
     } else if (req.method === "POST") {
       try {
         const arrayBuffer = await req.arrayBuffer();
-        await writeFile(filePath, Buffer.from(arrayBuffer));
+        await writeFile(filePath, new Uint8Array(arrayBuffer));
         return new Response(JSON.stringify({ success: true }), { headers });
       } catch (e) {
         return new Response(JSON.stringify({ success: false, error: (e as Error).message }), { status: 500, headers });
@@ -47,7 +47,9 @@ const server = Bun.serve({
   }
 });
 
-serverPort = server.port;
+serverPort = server.port || 0;
+
+console.log("[Backend] APP STARTING - Build Time: " + new Date().toISOString());
 
 const rpc = defineElectrobunRPC("bun", {
   maxRequestTime: Infinity,
@@ -56,39 +58,200 @@ const rpc = defineElectrobunRPC("bun", {
       getBinaryConfig: async () => {
         return { port: serverPort, token: securityToken };
       },
-      showSaveDialog: async ({ defaultPath }: { defaultPath: string }) => {
+      showSaveDialog: async ({ defaultPath }: any) => {
         const filePaths = await Electrobun.Utils.openFileDialog({
           startingFolder: defaultPath.includes("/") ? defaultPath.slice(0, defaultPath.lastIndexOf("/")) : "~/",
           canChooseFiles: false,
           canChooseDirectory: true,
           allowsMultipleSelection: false
         });
-        
+
         const canceled = filePaths.length === 0 || (filePaths.length === 1 && filePaths[0] === "");
         if (canceled) {
           return { canceled: true };
         }
-        
+
         const folderPath = filePaths[0];
+        if (!folderPath || typeof folderPath !== 'string') {
+          return { canceled: true };
+        }
+
         const fileName = defaultPath.split(/[\\\/]/).pop() || "comic.cbz";
-        const normalizedFolderPath = folderPath.endsWith("/") || folderPath.endsWith("\\") 
-          ? folderPath.slice(0, -1) 
+        const normalizedFolderPath = (folderPath.endsWith("/") || folderPath.endsWith("\\"))
+          ? folderPath.slice(0, -1)
           : folderPath;
-        
-        return { canceled: false, filePath: `${normalizedFolderPath}/${fileName}` };
+
+        const finalPath = `${normalizedFolderPath}/${fileName}`;
+        console.log(`[Backend] showSaveDialog returning: ${finalPath}`);
+        return { canceled: false, filePath: finalPath };
       },
 
-      showOpenDialog: async () => {
+      showOpenDialog: async ({ canChooseDirectory = false }: any = {}) => {
+        console.log(`[Backend] showOpenDialog called, canChooseDirectory: ${canChooseDirectory}`);
         const filePaths = await Electrobun.Utils.openFileDialog({
-          allowedFileTypes: "*.cbz,*.cbr",
-          canChooseFiles: true,
-          canChooseDirectory: false,
+          allowedFileTypes: canChooseDirectory ? "" : "*.cbz,*.cbr",
+          canChooseFiles: !canChooseDirectory,
+          canChooseDirectory: canChooseDirectory,
           allowsMultipleSelection: false
         });
-        
-        const canceled = filePaths.length === 0 || (filePaths.length === 1 && filePaths[0] === "");
+
+        console.log(`[Backend] openFileDialog result:`, filePaths);
+        const canceled = !filePaths || filePaths.length === 0 || (filePaths.length === 1 && filePaths[0] === "");
         return { canceled, filePaths: canceled ? [] : filePaths };
-      }
+      },
+
+      extractCBR: async ({ filePath }: any) => {
+        console.log(`[Backend] Extracting CBR: ${filePath}`);
+        const { createExtractorFromData } = await import("node-unrar-js");
+        const { unrarWasmB64 } = await import("./unrar-wasm");
+        const os = await import("os");
+        const path = await import("path");
+        const fs = await import("fs");
+
+        try {
+          const fileCheck = Bun.file(filePath);
+          if (!(await fileCheck.exists())) {
+            throw new Error(`File does not exist: ${filePath}`);
+          }
+
+          const fileBuffer = await fileCheck.arrayBuffer();
+          const wasmBuffer = Buffer.from(unrarWasmB64, 'base64');
+
+          const extractor = await createExtractorFromData({
+            data: fileBuffer,
+            wasmBinary: wasmBuffer.buffer.slice(wasmBuffer.byteOffset, wasmBuffer.byteOffset + wasmBuffer.byteLength) as ArrayBuffer
+          });
+
+          const { files } = extractor.extract();
+
+          const images: { name: string; path: string }[] = [];
+
+          const tempBaseDir = path.join(os.tmpdir(), "cbx-tool-");
+          const tempDir = fs.mkdtempSync(tempBaseDir);
+          console.log(`[Backend] Temporary extraction folder: ${tempDir}`);
+
+          const imageExtensions = [".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"];
+
+          let fileCount = 0;
+          for (const fileItem of files) {
+            fileCount++;
+            const filename = fileItem.fileHeader.name;
+
+            if (fileItem.fileHeader.flags.directory) {
+              continue;
+            }
+
+            const lastDot = filename.lastIndexOf(".");
+            const ext = lastDot !== -1 ? filename.toLowerCase().slice(lastDot) : "";
+
+            if (imageExtensions.includes(ext)) {
+              if (fileItem.extraction) {
+                const pagePath = path.join(tempDir, path.basename(filename));
+                await Bun.write(pagePath, fileItem.extraction);
+                images.push({
+                  name: filename,
+                  path: pagePath
+                });
+                if (images.length % 50 === 0) {
+                  console.log(`[Backend] Progress: ${images.length} images extracted...`);
+                }
+              }
+            }
+          }
+
+          console.log(`[Backend] Finished! Processed ${fileCount} total entries, extracted ${images.length} images.`);
+
+          images.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
+
+          return { success: true, files: images };
+
+        } catch (e) {
+          console.error("CBR Extraction Error:", e);
+          return { success: false, error: (e as Error).message, files: [] };
+        }
+      },
+
+      extractArchiveToFolder: async ({ sourcePath, destinationPath, type }: any) => {
+        console.log(`[Backend] extractArchiveToFolder: ${sourcePath} -> ${destinationPath} (${type})`);
+        const fs = await import("fs");
+        const path = await import("path");
+
+        try {
+          if (!fs.existsSync(destinationPath)) {
+            fs.mkdirSync(destinationPath, { recursive: true });
+          }
+
+          if (type === 'cbr') {
+            const { createExtractorFromData } = await import("node-unrar-js");
+            const { unrarWasmB64 } = await import("./unrar-wasm");
+            const fileBuffer = await Bun.file(sourcePath).arrayBuffer();
+            const wasmBuffer = Buffer.from(unrarWasmB64, 'base64');
+
+            const extractor = await createExtractorFromData({
+              data: fileBuffer,
+              wasmBinary: wasmBuffer.buffer.slice(wasmBuffer.byteOffset, wasmBuffer.byteOffset + wasmBuffer.byteLength) as ArrayBuffer
+            });
+
+            const { files } = extractor.extract();
+            for (const fileItem of files) {
+              if (fileItem.fileHeader.flags.directory) continue;
+              const targetFile = path.join(destinationPath, path.basename(fileItem.fileHeader.name));
+              if (fileItem.extraction) {
+                await Bun.write(targetFile, fileItem.extraction);
+              }
+            }
+          } else if (type === 'cbz') {
+            // Use JSZip on backend if possible, or simple Bun file read
+            // Since we already use JSZip on frontend, Let's use it here too for consistency if needed, 
+            // but for backend performance, we might want a native hook or just Bun.file.
+            // Actually, for .cbz (ZIP), we can use the 'unzip' command if available or a library.
+            // For simplicity and to avoid new dependencies, let's use JSZip which is already in package.json.
+            const JSZip = (await import("jszip")).default;
+            const fileBuffer = await Bun.file(sourcePath).arrayBuffer();
+            const zip = await JSZip.loadAsync(fileBuffer);
+
+            for (const [filename, file] of Object.entries(zip.files)) {
+              if (file.dir) continue;
+              const content = await file.async("uint8array");
+              const targetFile = path.join(destinationPath, path.basename(filename));
+              await Bun.write(targetFile, content);
+            }
+          }
+
+          return { success: true };
+        } catch (e) {
+          console.error("Extraction to folder error:", e);
+          return { success: false, error: (e as Error).message };
+        }
+      },
+
+      readFolder: async ({ folderPath }: any) => {
+        const { readdir } = await import("fs/promises");
+        const path = await import("path");
+
+        try {
+          const files = await readdir(folderPath);
+          const images: { name: string; path: string }[] = [];
+          const imageExtensions = [".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"];
+
+          for (const filename of files) {
+            const ext = path.extname(filename).toLowerCase();
+            if (imageExtensions.includes(ext)) {
+              images.push({
+                name: filename,
+                path: path.join(folderPath, filename)
+              });
+            }
+          }
+
+          images.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
+
+          return { success: true, files: images };
+        } catch (e) {
+          console.error("Read Folder Error:", e);
+          return { success: false, error: (e as Error).message, files: [] };
+        }
+      },
     }
   }
 });
