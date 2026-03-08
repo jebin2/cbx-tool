@@ -23,45 +23,11 @@ jobs:
         run: |
           tar -xzf artifacts/stable-linux-*-Setup.tar.gz ./installer
           chmod +x installer
-          BASE64=$(base64 -w 0 installer)
-          cat > CBX-Tool-Linux-Install.sh << 'SCRIPT_EOF'
-#!/bin/sh
-set -e
-
-APP_ID="com.cbxtool.app"
-LAUNCHER="$HOME/.local/share/$APP_ID/stable/app/bin/launcher"
-BIN_LINK="$HOME/.local/bin/cbx-tool"
-DESKTOP="$HOME/.local/share/applications/cbx-tool.desktop"
-
-INSTALLER_TMP=$(mktemp /tmp/cbx-installer-XXXXXX)
-tail -n +__LINES__ "$0" | base64 -d > "$INSTALLER_TMP"
-chmod +x "$INSTALLER_TMP"
-echo "Running CBX Tool installer..."
-"$INSTALLER_TMP"
-rm -f "$INSTALLER_TMP"
-
-mkdir -p "$HOME/.local/bin"
-ln -sf "$LAUNCHER" "$BIN_LINK"
-echo "Created command: cbx-tool"
-
-mkdir -p "$HOME/.local/share/applications"
-cat > "$DESKTOP" << EOF
-[Desktop Entry]
-Name=CBX Tool
-Exec=$LAUNCHER
-Type=Application
-Categories=Graphics;
-EOF
-update-desktop-database "$HOME/.local/share/applications" 2>/dev/null || true
-echo "Created app menu entry"
-echo ""
-echo "Done! Run 'cbx-tool' or find 'CBX Tool' in your app menu."
-exit 0
-SCRIPT_EOF
+          cp scripts/linux-install-template.sh CBX-Tool-Linux-Install.sh
           LINES=$(wc -l < CBX-Tool-Linux-Install.sh)
           LINES=$((LINES + 1))
           sed -i "s/__LINES__/$LINES/" CBX-Tool-Linux-Install.sh
-          echo "$BASE64" >> CBX-Tool-Linux-Install.sh
+          base64 -w 0 installer >> CBX-Tool-Linux-Install.sh
           chmod +x CBX-Tool-Linux-Install.sh
       - uses: softprops/action-gh-release@v1
         with:
