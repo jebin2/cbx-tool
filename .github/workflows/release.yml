@@ -32,15 +32,16 @@ jobs:
         run: bunx electrobun build --env=stable
 
       - name: List build output
-        run: ls build/
+        run: find build/ -type f
 
-      # Linux: electrobun produces a self-extracting Setup.tar.gz — use it directly
+      # Linux: zip the app folder for distribution
       - name: Collect artifact (Linux)
         if: runner.os == 'Linux'
         run: |
-          SRC=$(ls build/stable-linux-*-Setup.tar.gz | head -1)
-          echo "Found: $SRC"
-          cp "$SRC" CBX-Tool-Linux-Setup.tar.gz
+          APP=$(find build/stable-linux-*/ -maxdepth 1 -mindepth 1 -type d | head -1)
+          echo "=== App dir: $APP ==="
+          cd "$(dirname "$APP")"
+          zip -r "../../CBX-Tool-Linux.zip" "$(basename "$APP")"
 
       # macOS: electrobun outputs a .app bundle directory — zip it for distribution
       - name: Collect artifact (macOS)
@@ -65,7 +66,7 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            CBX-Tool-Linux-Setup.tar.gz
+            CBX-Tool-Linux.zip
             CBX-Tool-macOS.zip
             CBX-Tool-Windows-Setup.exe
         env:
