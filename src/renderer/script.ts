@@ -37,6 +37,18 @@ async function initRPC() {
             params: Record<string, never>;
             response: { canceled: boolean; filePaths: string[] };
           };
+          closeWindow: {
+            params: Record<string, never>;
+            response: void;
+          };
+          minimizeWindow: {
+            params: Record<string, never>;
+            response: void;
+          };
+          maximizeWindow: {
+            params: Record<string, never>;
+            response: void;
+          };
         };
       };
     };
@@ -294,6 +306,10 @@ fileInput.addEventListener("change", (e) => {
 });
 
 saveBtn.addEventListener("click", saveComic);
+
+document.getElementById("closeBtn")?.addEventListener("click", () => rpc?.request.closeWindow());
+document.getElementById("minimizeBtn")?.addEventListener("click", () => rpc?.request.minimizeWindow());
+document.getElementById("maximizeBtn")?.addEventListener("click", () => rpc?.request.maximizeWindow());
 
 dropZone.addEventListener("dragover", (e) => {
   e.preventDefault();

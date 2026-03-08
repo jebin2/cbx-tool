@@ -77,6 +77,15 @@ const rpc = defineElectrobunRPC("bun", {
         
         return { canceled: false, filePath: `${normalizedFolderPath}/${fileName}` };
       },
+      closeWindow: async () => {
+        mainWindow.close();
+      },
+      minimizeWindow: async () => {
+        mainWindow.minimize();
+      },
+      maximizeWindow: async () => {
+        mainWindow.maximize();
+      },
       showOpenDialog: async () => {
         const filePaths = await Electrobun.Utils.openFileDialog({
           allowedFileTypes: "*.cbz,*.cbr",
@@ -98,4 +107,6 @@ const mainWindow = new BrowserWindow({
   title: "CBX Tool",
   url: "views://mainview/index.html",
   rpc,
+  titleBarStyle: "hidden",
+  transparent: true,
 });

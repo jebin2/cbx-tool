@@ -8,38 +8,49 @@
 </head>
 <body>
   <div class="app">
-    <header class="toolbar">
-      <h1>CBX Tool</h1>
-      <div class="toolbar-buttons">
-        <button id="openBtn">Open Comic</button>
-        <button id="saveBtn" disabled>Save Comic</button>
+    <div class="titlebar">
+      <div class="win-controls">
+        <button class="win-btn close-btn"    id="closeBtn"    title="Close"></button>
+        <button class="win-btn minimize-btn" id="minimizeBtn" title="Minimize"></button>
+        <button class="win-btn maximize-btn" id="maximizeBtn" title="Maximize"></button>
       </div>
-    </header>
-    
-    <main class="main-content">
+      <span class="app-title">CBX Tool</span>
+      <div class="toolbar-actions">
+        <button id="openBtn">Open</button>
+        <button id="saveBtn" disabled>Save</button>
+      </div>
+    </div>
+
+    <div class="main-content">
       <aside class="sidebar">
         <div class="sidebar-header">
-          <h2>Pages</h2>
-          <span id="pageCount">0 pages</span>
+          <span class="sidebar-title">Pages</span>
+          <span id="pageCount">—</span>
         </div>
         <div id="pageList" class="page-list"></div>
       </aside>
-      
+
       <section class="viewer">
         <div id="dropZone" class="drop-zone">
-          <p>Drop a .cbz or .cbr file here</p>
-          <p>or click "Open Comic" button</p>
+          <svg class="drop-icon" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="8" y="16" width="48" height="36" rx="6" stroke="currentColor" stroke-width="2.5" fill="none"/>
+            <path d="M8 24h48" stroke="currentColor" stroke-width="2.5"/>
+            <path d="M8 20c0-2.2 1.8-4 4-4h12l4 4H8z" fill="currentColor" opacity="0.3"/>
+            <path d="M32 34v10M27 39l5-5 5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <p>Drop a .cbz file here</p>
+          <p class="drop-sub">or click Open above</p>
         </div>
         <img id="previewImage" class="preview-image hidden" alt="Page preview">
       </section>
-    </main>
+    </div>
   </div>
-  
+
   <div id="loader" class="loader-overlay hidden">
     <div class="spinner"></div>
-    <div class="loader-text">Processing Comic...</div>
+    <div class="loader-text">Loading comic…</div>
   </div>
-  
+
   <input type="file" id="fileInput" accept=".cbz,.cbr" hidden>
   <script type="module" src="script.js"></script>
 </body>
