@@ -31,8 +31,14 @@ jobs:
       - name: Build application
         run: bunx electrobun build --env=stable
 
-      - name: List build output
+      - name: List build output (Unix)
+        if: runner.os != 'Windows'
         run: find build/ -type f
+
+      - name: List build output (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: Get-ChildItem build/ -Recurse
 
       # Linux: zip the app folder for distribution
       - name: Collect artifact (Linux)
