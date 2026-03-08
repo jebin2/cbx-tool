@@ -1,6 +1,6 @@
 {
   "name": "simple-comic-editor",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "type": "module",
   "dependencies": {
     "electrobun": "^1.0.0",

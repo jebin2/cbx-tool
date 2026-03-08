@@ -42,7 +42,7 @@ jobs:
           cat > AppDir/CBXTool.desktop <<EOF
           [Desktop Entry]
           Name=CBX Tool
-          Exec=bin/CBXTool
+          Exec=bin/launcher
           Icon=icon
           Type=Application
           Categories=Graphics;
@@ -56,7 +56,7 @@ jobs:
           #!/bin/sh
           HERE="\$(dirname "\$(readlink -f "\${0}")")"
           export LD_LIBRARY_PATH="\$HERE/lib:\$LD_LIBRARY_PATH"
-          exec "\$HERE/bin/CBXTool" "\$@"
+          exec "\$HERE/bin/launcher" "\$@"
           EOF
           chmod +x AppDir/AppRun
           
