@@ -21,7 +21,7 @@ const loader = document.getElementById("loader") as HTMLDivElement;
 async function initRPC() {
   try {
     const { Electroview } = await import("electrobun/view");
-    
+
     type RPCType = {
       bun: {
         requests: {
@@ -37,18 +37,6 @@ async function initRPC() {
             params: Record<string, never>;
             response: { canceled: boolean; filePaths: string[] };
           };
-          closeWindow: {
-            params: Record<string, never>;
-            response: void;
-          };
-          minimizeWindow: {
-            params: Record<string, never>;
-            response: void;
-          };
-          maximizeWindow: {
-            params: Record<string, never>;
-            response: void;
-          };
         };
       };
     };
@@ -61,7 +49,7 @@ async function initRPC() {
         },
       }),
     });
-    
+
     rpc = electroview.rpc;
     console.log("RPC initialized successfully");
     binaryConfig = await rpc.request.getBinaryConfig();
@@ -133,7 +121,7 @@ async function loadCbz(arrayBuffer: ArrayBuffer): Promise<() => Promise<void>> {
 
   pages = [];
 
-  if (imageFiles.length === 0) return async () => {};
+  if (imageFiles.length === 0) return async () => { };
 
   // Load first page immediately so UI can show instantly
   const firstBlob = await zip.files[imageFiles[0]].async("blob");
@@ -156,7 +144,7 @@ function renderPageList() {
   pageList.innerHTML = "";
   const activeCount = pages.filter((p) => !p.disabled).length;
   pageCount.textContent = `${activeCount}/${pages.length} pages`;
-  
+
   pages.forEach((page, index) => {
     const item = document.createElement("div");
     item.className = "page-item" +
@@ -165,9 +153,10 @@ function renderPageList() {
     item.innerHTML = `
       <img src="${page.url}" alt="Page ${index + 1}" loading="lazy">
       <div class="page-info">
+        <div class="page-num">${index + 1}</div>
         <div class="page-name">${page.filename}</div>
       </div>
-      <button class="remove-btn" data-index="${index}">${page.disabled ? "Add" : "Remove"}</button>
+      <button class="remove-btn" data-index="${index}" title="${page.disabled ? "Restore" : "Remove"}">${page.disabled ? "+" : "×"}</button>
     `;
 
     item.addEventListener("click", (e) => {
@@ -225,7 +214,7 @@ async function saveComic() {
     } else {
       savePath = `${baseName}_modified${ext}`;
     }
-    
+
     if (!rpc) {
       alert("RPC not initialized. Using browser download instead.");
       const blob = new Blob([new Uint8Array(arrayBuffer)], { type: "application/zip" });
@@ -238,11 +227,11 @@ async function saveComic() {
       alert(`Saved as ${savePath}`);
       return;
     }
-    
+
     const result = await rpc.request.showSaveDialog({
       defaultPath: savePath || "comic.cbz"
     });
-    
+
     if (result.canceled || !result.filePath) {
       return;
     }
@@ -250,10 +239,10 @@ async function saveComic() {
     // High performance save via Binary Bridge
     const saveUrl = `http://localhost:${binaryConfig!.port}/save?path=${encodeURIComponent(result.filePath)}&token=${binaryConfig!.token}`;
     const response = await fetch(saveUrl, {
-        method: 'POST',
-        body: arrayBuffer
+      method: 'POST',
+      body: arrayBuffer
     });
-    
+
     if (response.ok) {
       currentFilePath = result.filePath;
       currentFileName = result.filePath.split(/[\\/]/).pop() || currentFileName;
@@ -273,9 +262,9 @@ openBtn.addEventListener("click", async () => {
     try {
       const result = await rpc.request.showOpenDialog();
       if (result.canceled || result.filePaths.length === 0) return;
-      
+
       const filePath = result.filePaths[0];
-      
+
       // Show loader immediately after dialog closes
       loader.classList.remove("hidden");
       await new Promise(resolve => setTimeout(resolve, 10));
@@ -284,7 +273,7 @@ openBtn.addEventListener("click", async () => {
       const readUrl = `http://localhost:${binaryConfig.port}/file?path=${encodeURIComponent(filePath)}&token=${binaryConfig.token}`;
       const response = await fetch(readUrl);
       const blob = await response.blob();
-      
+
       const file = new File([blob], filePath.split(/[\\/]/).pop() || "comic.cbz", { type: "application/zip" });
       await openComicFile(file, filePath);
       return;
@@ -307,9 +296,6 @@ fileInput.addEventListener("change", (e) => {
 
 saveBtn.addEventListener("click", saveComic);
 
-document.getElementById("closeBtn")?.addEventListener("click", () => rpc?.request.closeWindow());
-document.getElementById("minimizeBtn")?.addEventListener("click", () => rpc?.request.minimizeWindow());
-document.getElementById("maximizeBtn")?.addEventListener("click", () => rpc?.request.maximizeWindow());
 
 dropZone.addEventListener("dragover", (e) => {
   e.preventDefault();
@@ -332,11 +318,11 @@ dropZone.addEventListener("drop", (e) => {
 
 document.addEventListener("keydown", (e) => {
   if (!pages.length) return;
-  if (e.key === "ArrowRight") {
+  if (e.key === "ArrowRight" || e.key === "ArrowDown") {
     if (selectedPageIndex < pages.length - 1) selectPage(selectedPageIndex + 1);
-  } else if (e.key === "ArrowLeft") {
+  } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
     if (selectedPageIndex > 0) selectPage(selectedPageIndex - 1);
-  } else if (e.key === "Delete") {
+  } else if (e.key === "Delete" || e.key === "x") {
     togglePage(selectedPageIndex);
   }
 });
