@@ -21,8 +21,8 @@ Section "Install"
     File "${ICON_PATH}"
   !endif
 
-  ; Run electrobun setup
-  ExecWait '"$INSTDIR\CBX Tool-Setup.exe"'
+  ; Run electrobun setup (hidden console — avoids stuck terminal)
+  nsExec::ExecToLog '"$INSTDIR\CBX Tool-Setup.exe"'
 
   ; Override shortcuts with explicit icon so all view sizes show correctly
   CreateShortcut "$DESKTOP\CBX Tool.lnk" \
