@@ -31,14 +31,22 @@ mkdir -p "$HOME/.local/bin"
 ln -sf "$LAUNCHER" "$BIN_LINK"
 echo "Created command: cbx-tool"
 
-# Install icon
+ICON_SRC="$APP_DIR/stable/app/Resources/icon.png"
+ICON_DEST="$HOME/.local/share/icons/hicolor/256x256/apps/cbx-tool.png"
+
+# Install icon to hicolor theme
 mkdir -p "$HOME/.local/share/icons/hicolor/256x256/apps"
-cp "$HOME/.local/share/$APP_ID/stable/app/Resources/icon.png" \
-   "$HOME/.local/share/icons/hicolor/256x256/apps/cbx-tool.png" 2>/dev/null || true
+cp "$ICON_SRC" "$ICON_DEST" 2>/dev/null || true
 update-icon-caches "$HOME/.local/share/icons" 2>/dev/null || true
 
+# Use absolute path as Icon value — more reliable than theme name lookup
+ICON_VALUE="$ICON_DEST"
+if [ ! -f "$ICON_DEST" ] && [ -f "$ICON_SRC" ]; then
+  ICON_VALUE="$ICON_SRC"
+fi
+
 mkdir -p "$HOME/.local/share/applications"
-printf '[Desktop Entry]\nName=CBX Tool\nExec=%s\nIcon=cbx-tool\nType=Application\nCategories=Graphics;\n' "$LAUNCHER" > "$DESKTOP"
+printf '[Desktop Entry]\nName=CBX Tool\nExec=%s\nIcon=%s\nType=Application\nCategories=Graphics;\n' "$LAUNCHER" "$ICON_VALUE" > "$DESKTOP"
 update-desktop-database "$HOME/.local/share/applications" 2>/dev/null || true
 echo "Created app menu entry"
 

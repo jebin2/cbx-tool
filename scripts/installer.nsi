@@ -17,6 +17,18 @@ ShowInstDetails show
 Section "Install"
   SetOutPath "$INSTDIR"
   File /r "setup_extracted\*"
-  ; Electrobun setup handles shortcuts, uninstall registry, and app launch
+  !ifdef ICON_PATH
+    File "${ICON_PATH}"
+  !endif
+
+  ; Run electrobun setup
   ExecWait '"$INSTDIR\CBX Tool-Setup.exe"'
+
+  ; Override shortcuts with explicit icon so all view sizes show correctly
+  CreateShortcut "$DESKTOP\CBX Tool.lnk" \
+    "$LOCALAPPDATA\com.cbxtool.app\stable\app\bin\launcher.exe" \
+    "" "$INSTDIR\installer-icon.ico" 0
+  CreateShortcut "$SMPROGRAMS\CBX Tool.lnk" \
+    "$LOCALAPPDATA\com.cbxtool.app\stable\app\bin\launcher.exe" \
+    "" "$INSTDIR\installer-icon.ico" 0
 SectionEnd
