@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CBX Tool</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app">
+    <header class="toolbar">
+      <h1>CBX Tool</h1>
+      <div class="toolbar-buttons">
+        <button id="openBtn">Open Comic</button>
+        <button id="saveBtn" disabled>Save Comic</button>
+      </div>
+    </header>
+    
+    <main class="main-content">
+      <aside class="sidebar">
+        <div class="sidebar-header">
+          <h2>Pages</h2>
+          <span id="pageCount">0 pages</span>
+        </div>
+        <div id="pageList" class="page-list"></div>
+      </aside>
+      
+      <section class="viewer">
+        <div id="dropZone" class="drop-zone">
+          <p>Drop a .cbz or .cbr file here</p>
+          <p>or click "Open Comic" button</p>
+        </div>
+        <img id="previewImage" class="preview-image hidden" alt="Page preview">
+      </section>
+    </main>
+  </div>
+  
+  <div id="loader" class="loader-overlay hidden">
+    <div class="spinner"></div>
+    <div class="loader-text">Processing Comic...</div>
+  </div>
+  
+  <input type="file" id="fileInput" accept=".cbz,.cbr" hidden>
+  <script type="module" src="script.js"></script>
+</body>
+</html>

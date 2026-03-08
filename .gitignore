@@ -1,0 +1,24 @@
+# Dependencies
+node_modules/
+bun.lockb
+
+# Build outputs
+build/
+dist/
+*.exe
+*.app
+*.deb
+*.rpm
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Electrobun specific
+electrobun/
+libasar.so
+libNativeWrapper.so
+zig-zstd
+bspatch
+launcher
+bun

@@ -1,0 +1,13 @@
+{
+  "name": "simple-comic-editor",
+  "version": "1.0.0",
+  "type": "module",
+  "dependencies": {
+    "electrobun": "^1.0.0",
+    "jszip": "^3.10.1"
+  },
+  "scripts": {
+    "start": "electrobun dev",
+    "build": "electrobun build"
+  }
+}
