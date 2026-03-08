@@ -35,8 +35,12 @@ jobs:
       - name: Create AppImage (Linux)
         if: runner.os == 'Linux'
         run: |
+          echo "=== build/ contents ===" && ls build/
+          BUILD_DIR=$(ls -d build/stable-linux-*/ | head -1)
+          APP_DIR=$(ls -d "$BUILD_DIR"*/ | head -1)
+          echo "=== Using: $APP_DIR ===" && ls "$APP_DIR"
           mkdir -p AppDir
-          cp -r build/stable-linux-x64/CBXTool/* AppDir/
+          cp -r "$APP_DIR"* AppDir/
 
           # Copy icon
           cp resources/icon.png AppDir/icon.png
@@ -80,8 +84,15 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          Move-Item build/stable-win-x64/CBXTool/bin/launcher.exe build/stable-win-x64/CBXTool/bin/CBX-Tool.exe
-          Compress-Archive -Path build/stable-win-x64/CBXTool/* -DestinationPath CBX-Tool-Windows.zip
+          Write-Host "=== build/ contents ===" && Get-ChildItem build/
+          $buildDir = (Get-ChildItem -Directory build/ | Where-Object { $_.Name -like "stable-win*" } | Select-Object -First 1).FullName
+          Write-Host "=== Using: $buildDir ===" && Get-ChildItem $buildDir
+          $appDir = (Get-ChildItem -Directory $buildDir | Select-Object -First 1).FullName
+          Write-Host "=== App dir: $appDir ===" && Get-ChildItem $appDir
+          $launcher = Join-Path $appDir "bin\launcher.exe"
+          $renamed  = Join-Path $appDir "bin\CBX-Tool.exe"
+          Move-Item $launcher $renamed
+          Compress-Archive -Path "$appDir\*" -DestinationPath CBX-Tool-Windows.zip
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
