@@ -36,8 +36,5 @@ To run the project locally:
     bun run build:stable
     ```
 
-## GitHub "About" Description 📝
-> A modern, ultra-fast comic book reader and editor featuring seamless Webtoon scrolling, CBR/CBZ support, and folder-to-archive workflows. Built with Electrobun and Bun.
-
 ---
 Built with ❤️ for comic lovers.
