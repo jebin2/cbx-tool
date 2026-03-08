@@ -149,6 +149,9 @@ async function loadCbz(arrayBuffer: ArrayBuffer): Promise<() => Promise<void>> {
       pages.push({ filename, url: URL.createObjectURL(restBlobs[i]), blob: restBlobs[i], disabled: false });
     });
     renderPageList();
+    if (selectedPageIndex !== -1) {
+      selectPage(selectedPageIndex, true);
+    }
   };
 }
 
