@@ -31,6 +31,8 @@ const resetOrderBtn = document.getElementById("resetOrderBtn") as HTMLButtonElem
 let isScrollingProgrammatically = false;
 let autoScrollInterval: number | null = null;
 let draggedItemIndex: number | null = null;
+let dragScrollRequest: number | null = null;
+let lastDragClientY = 0;
 
 async function initRPC() {
   try {
@@ -366,6 +368,32 @@ async function loadCbz(arrayBuffer: ArrayBuffer): Promise<() => Promise<void>> {
   };
 }
 
+function handleDragScroll() {
+  if (draggedItemIndex === null) {
+    dragScrollRequest = null;
+    return;
+  }
+
+  const rect = pageList.getBoundingClientRect();
+  const threshold = 60; // distance from top/bottom to start scrolling
+  const maxSpeed = 15;
+
+  if (lastDragClientY < rect.top + threshold) {
+    const intensity = Math.min(1, (rect.top + threshold - lastDragClientY) / threshold);
+    pageList.scrollTop -= intensity * maxSpeed;
+  } else if (lastDragClientY > rect.bottom - threshold) {
+    const intensity = Math.min(1, (lastDragClientY - (rect.bottom - threshold)) / threshold);
+    pageList.scrollTop += intensity * maxSpeed;
+  }
+
+  dragScrollRequest = requestAnimationFrame(handleDragScroll);
+}
+
+// Ensure the sidebar container also updates the drag position
+pageList.addEventListener("dragover", (e) => {
+  lastDragClientY = e.clientY;
+});
+
 function renderPageList() {
   pageList.innerHTML = "";
   const activeCount = pages.filter((p) => !p.disabled).length;
@@ -393,6 +421,10 @@ function renderPageList() {
         e.dataTransfer.effectAllowed = "move";
         e.dataTransfer.setData("text/plain", index.toString());
       }
+
+      if (!dragScrollRequest) {
+        dragScrollRequest = requestAnimationFrame(handleDragScroll);
+      }
     });
 
     item.addEventListener("dragover", (e) => {
@@ -408,6 +440,8 @@ function renderPageList() {
       } else {
         item.classList.add("drop-target-below");
       }
+
+      lastDragClientY = e.clientY;
     });
 
     item.addEventListener("dragleave", () => {
@@ -454,6 +488,10 @@ function renderPageList() {
     item.addEventListener("dragend", () => {
       item.classList.remove("dragging");
       draggedItemIndex = null;
+      if (dragScrollRequest) {
+        cancelAnimationFrame(dragScrollRequest);
+        dragScrollRequest = null;
+      }
       document.querySelectorAll(".page-item").forEach(i =>
         i.classList.remove("drop-target-above", "drop-target-below")
       );
