@@ -415,6 +415,7 @@ button:disabled {
 .viewer {
   flex: 1;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   position: relative;
@@ -425,6 +426,24 @@ button:disabled {
 
 .viewer.has-content {
   align-items: flex-start;
+  flex-direction: row;
+  /* Images scroll left/right naturally or fit-width */
+}
+
+/* ── Landing Container ─────────────────────────────── */
+.landing-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  max-width: 680px;
+  flex: 1;
+  min-height: 0;
+}
+
+.landing-container.hidden {
+  display: none !important;
 }
 
 /* ── Drop zone ─────────────────────────────────────── */
@@ -502,6 +521,148 @@ button:disabled {
   }
 }
 
+/* ── Recent Files ──────────────────────────────────── */
+.recent-files-container {
+  width: 100%;
+  max-width: 680px;
+  margin-top: 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  animation: fade-in 0.4s ease;
+  flex: 1;
+  min-height: 0;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.recent-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.clear-recent-btn {
+  background: none;
+  border: none;
+  color: var(--text-3);
+  cursor: pointer;
+  padding: 6px;
+  border-radius: var(--r-sm);
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.clear-recent-btn:hover {
+  color: #ef4444;
+  /* red icon */
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.recent-title {
+  font-size: 14px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-2);
+  margin-left: 8px;
+}
+
+.recent-files-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 8px;
+  align-content: start;
+}
+
+/* Custom scrollbar for recent files to match the app */
+.recent-files-grid::-webkit-scrollbar {
+  width: 6px;
+}
+
+.recent-files-grid::-webkit-scrollbar-track {
+  background: var(--surface-0);
+  border-radius: var(--r-sm);
+}
+
+.recent-files-grid::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: var(--r-sm);
+}
+
+.recent-files-grid::-webkit-scrollbar-thumb:hover {
+  background: var(--text-3);
+}
+
+.recent-file-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--surface-0);
+  border: 1px solid var(--border);
+  padding: 12px 14px;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: var(--s1);
+}
+
+.recent-file-item:hover {
+  background: var(--surface-1);
+  border-color: rgba(99, 102, 241, 0.4);
+  transform: translateY(-2px);
+  box-shadow: var(--s2), 0 4px 15px rgba(99, 102, 241, 0.1);
+}
+
+.recent-file-icon {
+  color: var(--accent);
+  opacity: 0.8;
+  flex-shrink: 0;
+}
+
+.recent-file-info {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  gap: 4px;
+}
+
+.recent-file-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.recent-file-path {
+  font-size: 11px;
+  color: var(--text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  direction: rtl;
+  /* Truncates start of path instead of end */
+  text-align: left;
+}
 
 /* ── Preview Container ──────────────────────────────── */
 .preview-container {

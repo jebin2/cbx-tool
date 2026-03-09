@@ -58,6 +58,69 @@ const rpc = defineElectrobunRPC("bun", {
       getBinaryConfig: async () => {
         return { port: serverPort, token: securityToken };
       },
+      getRecentFiles: async () => {
+        const fs = await import("fs/promises");
+        const path = await import("path");
+        const os = await import("os");
+        const recentFilePath = path.join(os.homedir(), ".cbxtool", "recent.json");
+        try {
+          const content = await fs.readFile(recentFilePath, "utf-8");
+          return JSON.parse(content);
+        } catch (e: any) {
+          if (e.code === "ENOENT") return [];
+          console.error("Failed to read recent files:", e);
+          return [];
+        }
+      },
+      addRecentFile: async ({ name, filePath }: any) => {
+        if (!filePath) return { success: false };
+        const fs = await import("fs/promises");
+        const fsSync = await import("fs");
+        const path = await import("path");
+        const os = await import("os");
+        const dir = path.join(os.homedir(), ".cbxtool");
+        const recentFilePath = path.join(dir, "recent.json");
+        try {
+          if (!fsSync.existsSync(dir)) {
+            await fs.mkdir(dir, { recursive: true });
+          }
+          let current: { name: string; path: string }[] = [];
+          try {
+            const content = await fs.readFile(recentFilePath, "utf-8");
+            current = JSON.parse(content);
+          } catch (e: any) {
+            // Ignore read errors if it doesn't exist
+          }
+
+          // Remove if it already exists to bring it to the front
+          current = current.filter((f) => f.path !== filePath);
+
+          // Add to front
+          current.unshift({ name, path: filePath });
+
+          // Keep top 10
+          if (current.length > 10) current = current.slice(0, 10);
+
+          await fs.writeFile(recentFilePath, JSON.stringify(current, null, 2));
+          return { success: true };
+        } catch (e) {
+          console.error("Failed to add recent file:", e);
+          return { success: false };
+        }
+      },
+      clearRecentFiles: async () => {
+        const fs = await import("fs/promises");
+        const path = await import("path");
+        const os = await import("os");
+        const recentFilePath = path.join(os.homedir(), ".cbxtool", "recent.json");
+        try {
+          await fs.unlink(recentFilePath);
+          return { success: true };
+        } catch (e: any) {
+          // If it doesn't exist, clearing is effectively successful
+          return { success: true };
+        }
+      },
       showSaveDialog: async ({ defaultPath }: any) => {
         const filePaths = await Electrobun.Utils.openFileDialog({
           startingFolder: defaultPath.includes("/") ? defaultPath.slice(0, defaultPath.lastIndexOf("/")) : "~/",

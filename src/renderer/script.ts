@@ -45,6 +45,18 @@ async function initRPC() {
             params: { canChooseDirectory?: boolean };
             response: { canceled: boolean; filePaths: string[] };
           };
+          getRecentFiles: {
+            params: Record<string, never>;
+            response: { name: string; path: string }[];
+          };
+          addRecentFile: {
+            params: { name: string; filePath: string };
+            response: { success: boolean };
+          };
+          clearRecentFiles: {
+            params: Record<string, never>;
+            response: { success: boolean };
+          };
           extractCBR: {
             params: { filePath: string };
             response: { success: boolean; error?: string; files: { name: string; path: string }[] };
@@ -80,8 +92,84 @@ async function initRPC() {
     rpc = electroview.rpc;
     console.log("RPC initialized successfully");
     binaryConfig = await rpc.request.getBinaryConfig();
+
+    // Load recent files on startup
+    loadRecentFiles();
   } catch (error) {
     console.error("Failed to initialize RPC:", error);
+  }
+}
+
+async function loadRecentFiles() {
+  if (!rpc) return;
+  try {
+    const recentFiles = await rpc.request.getRecentFiles();
+    const container = document.getElementById("recentFilesContainer") as HTMLDivElement;
+    const list = document.getElementById("recentFilesList") as HTMLDivElement;
+
+    if (!recentFiles || recentFiles.length === 0) {
+      container.classList.add("hidden");
+      return;
+    }
+
+    container.classList.remove("hidden");
+    list.innerHTML = "";
+
+    recentFiles.forEach((file: { name: string, path: string }) => {
+      const item = document.createElement("div");
+      item.className = "recent-file-item";
+      item.innerHTML = `
+        <svg class="recent-file-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+          <polyline points="14 2 14 8 20 8"></polyline>
+          <line x1="16" y1="13" x2="8" y2="13"></line>
+          <line x1="16" y1="17" x2="8" y2="17"></line>
+          <polyline points="10 9 9 9 8 9"></polyline>
+        </svg>
+        <div class="recent-file-info">
+          <span class="recent-file-name" title="${file.name}">${file.name}</span>
+          <span class="recent-file-path" title="${file.path}">${file.path}</span>
+        </div>
+      `;
+
+      item.addEventListener("click", () => openKnownFile(file.path, file.name));
+      list.appendChild(item);
+    });
+  } catch (error) {
+    console.error("Failed to load recent files:", error);
+  }
+}
+
+async function openKnownFile(filePath: string, fileName: string) {
+  isFolderMode = false;
+  saveBtn.innerHTML = `
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+      stroke-linecap="round" stroke-linejoin="round">
+      <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+      <polyline points="17 21 17 13 7 13 7 21" />
+      <polyline points="7 3 7 8 15 8" />
+    </svg>
+    Save
+  `;
+
+  document.getElementById("recentFilesContainer")?.classList.add("hidden");
+  dropZone.classList.add("hidden");
+  loader.classList.remove("hidden");
+  await new Promise(resolve => setTimeout(resolve, 10));
+
+  try {
+    const readUrl = `http://localhost:${binaryConfig!.port}/file?path=${encodeURIComponent(filePath)}&token=${binaryConfig!.token}`;
+    const response = await fetch(readUrl);
+
+    if (!response.ok) throw new Error("File not found");
+
+    const blob = await response.blob();
+    const file = new File([blob], fileName, { type: "application/zip" });
+    await openComicFile(file, filePath);
+  } catch (error) {
+    console.error("Failed to open recent file:", error);
+    alert("Could not open file.");
+    loader.classList.add("hidden");
   }
 }
 
@@ -100,6 +188,13 @@ async function openComicFile(file: any, filePath?: string) {
     currentFileName = file.name;
     currentFilePath = filePath || file.path || null;
     console.log(`[Frontend] openComicFile: ${currentFileName}, path: ${currentFilePath}`);
+
+    if (currentFilePath && rpc) {
+      rpc.request.addRecentFile({ name: currentFileName, filePath: currentFilePath }).then(() => {
+        loadRecentFiles();
+      });
+    }
+
     const arrayBuffer = await file.arrayBuffer();
     const ext = file.name.toLowerCase().slice(file.name.lastIndexOf("."));
 
@@ -107,7 +202,7 @@ async function openComicFile(file: any, filePath?: string) {
       const loadRest = await loadCbz(arrayBuffer);
 
       currentFile = arrayBuffer;
-      dropZone.classList.add("hidden");
+      document.getElementById("landingContainer")?.classList.add("hidden");
       previewContainer.classList.remove("hidden");
       previewContainer.classList.add("fit-height"); // Default viewing mode
 
@@ -174,7 +269,7 @@ async function openComicFile(file: any, filePath?: string) {
         console.log(`[Frontend] All ${pages.length} images fetched and converted to URLs`);
 
         currentFile = arrayBuffer;
-        dropZone.classList.add("hidden");
+        document.getElementById("landingContainer")?.classList.add("hidden");
         previewContainer.classList.remove("hidden");
         previewContainer.classList.add("fit-height");
 
@@ -454,6 +549,7 @@ openBtn.addEventListener("click", async () => {
       `;
 
       loader.classList.remove("hidden");
+      document.getElementById("landingContainer")?.classList.add("hidden");
       await new Promise(resolve => setTimeout(resolve, 10));
 
       const readUrl = `http://localhost:${binaryConfig.port}/file?path=${encodeURIComponent(filePath)}&token=${binaryConfig.token}`;
@@ -495,6 +591,7 @@ openFolderBtn.addEventListener("click", async () => {
       `;
 
       loader.classList.remove("hidden");
+      document.getElementById("landingContainer")?.classList.add("hidden");
       await new Promise(resolve => setTimeout(resolve, 10));
 
       const response = await rpc.request.readFolder({ folderPath });
@@ -512,7 +609,7 @@ openFolderBtn.addEventListener("click", async () => {
 
         if (pages.length > 0) {
           selectedPageIndex = 0;
-          dropZone.classList.add("hidden");
+          document.getElementById("landingContainer")?.classList.add("hidden");
           previewContainer.classList.remove("hidden");
           previewContainer.classList.add("fit-height");
           document.querySelector(".sidebar")?.classList.remove("hidden");
@@ -610,7 +707,7 @@ dropZone.addEventListener("dragleave", () => {
 
 dropZone.addEventListener("drop", (e) => {
   e.preventDefault();
-  dropZone.classList.remove("dragover");
+  document.getElementById("landingContainer")?.classList.add("hidden");
 
   const file = e.dataTransfer?.files[0];
   if (file) {
@@ -710,4 +807,17 @@ fitHeightBtn.addEventListener("click", () => {
   previewContainer.classList.add("fit-height");
   fitWidthBtn.classList.remove("active");
   fitHeightBtn.classList.add("active");
+});
+
+document.getElementById("clearRecentBtn")?.addEventListener("click", async () => {
+  if (rpc) {
+    if (confirm("Are you sure you want to clear your recent files history?")) {
+      const res = await rpc.request.clearRecentFiles();
+      if (res.success) {
+        document.getElementById("recentFilesContainer")?.classList.add("hidden");
+        const list = document.getElementById("recentFilesList");
+        if (list) list.innerHTML = "";
+      }
+    }
+  }
 });

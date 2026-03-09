@@ -75,17 +75,36 @@
       </aside>
 
       <section class="viewer">
-        <div id="dropZone" class="drop-zone">
-          <svg class="drop-icon" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <rect x="8" y="16" width="48" height="36" rx="6" stroke="currentColor" stroke-width="2.5" fill="none" />
-            <path d="M8 24h48" stroke="currentColor" stroke-width="2.5" />
-            <path d="M8 20c0-2.2 1.8-4 4-4h12l4 4H8z" fill="currentColor" opacity="0.3" />
-            <path d="M32 34v10M27 39l5-5 5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-              stroke-linejoin="round" />
-          </svg>
-          <p>Drop a .cbz file here</p>
-          <p class="drop-sub">or click Open above</p>
+        <div id="landingContainer" class="landing-container">
+          <div id="dropZone" class="drop-zone">
+            <svg class="drop-icon" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect x="8" y="16" width="48" height="36" rx="6" stroke="currentColor" stroke-width="2.5" fill="none" />
+              <path d="M8 24h48" stroke="currentColor" stroke-width="2.5" />
+              <path d="M8 20c0-2.2 1.8-4 4-4h12l4 4H8z" fill="currentColor" opacity="0.3" />
+              <path d="M32 34v10M27 39l5-5 5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                stroke-linejoin="round" />
+            </svg>
+            <p>Drop a .cbz file here</p>
+            <p class="drop-sub">or click Open above</p>
+          </div>
+
+          <div id="recentFilesContainer" class="recent-files-container hidden">
+            <div class="recent-header">
+              <h3 class="recent-title">Recent Files</h3>
+              <button id="clearRecentBtn" class="clear-recent-btn" title="Clear Recent Files">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                  stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="3 6 5 6 21 6"></polyline>
+                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                </svg>
+              </button>
+            </div>
+            <div id="recentFilesList" class="recent-files-grid">
+              <!-- Populated via JS -->
+            </div>
+          </div>
         </div>
+
         <div id="previewContainer" class="preview-container hidden">
           <img id="prevImage" class="preview-image" alt="Previous page">
           <img id="currentImage" class="preview-image" alt="Current page">
