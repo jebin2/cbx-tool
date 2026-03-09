@@ -228,9 +228,6 @@ const rpc = defineElectrobunRPC("bun", {
             }
           }
 
-          console.log(`[Backend] Finished! Processed ${fileCount} total entries, extracted ${images.length} images.`);
-
-          images.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
 
           return { success: true, files: images };
 
@@ -295,27 +292,39 @@ const rpc = defineElectrobunRPC("bun", {
       },
 
       readFolder: async ({ folderPath }: any) => {
-        const { readdir } = await import("fs/promises");
+        const { readdir, stat } = await import("fs/promises");
         const path = await import("path");
 
         try {
           const files = await readdir(folderPath);
-          const images: { name: string; path: string }[] = [];
+          const images: { name: string; path: string; time: number }[] = [];
           const imageExtensions = [".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"];
 
           for (const filename of files) {
             const ext = path.extname(filename).toLowerCase();
             if (imageExtensions.includes(ext)) {
+              const filePath = path.join(folderPath, filename);
+              const stats = await stat(filePath);
+              // Use birthtime if available and non-zero, otherwise mtime
+              const time = stats.birthtimeMs || stats.mtimeMs;
+
               images.push({
                 name: filename,
-                path: path.join(folderPath, filename)
+                path: filePath,
+                time: time
               });
             }
           }
 
-          images.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
+          // Sort by time, then name as fallback
+          images.sort((a, b) => {
+            if (a.time !== b.time) {
+              return a.time - b.time;
+            }
+            return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
+          });
 
-          return { success: true, files: images };
+          return { success: true, files: images.map(({ name, path }) => ({ name, path })) };
         } catch (e) {
           console.error("Read Folder Error:", e);
           return { success: false, error: (e as Error).message, files: [] };

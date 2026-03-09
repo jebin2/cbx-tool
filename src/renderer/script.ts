@@ -3,7 +3,7 @@ import JSZip from "jszip";
 let currentFile: ArrayBuffer | null = null;
 let currentFileName = "";
 let currentFilePath: string | null = null;
-let pages: { filename: string; url: string; blob: Blob; disabled: boolean }[] = [];
+let pages: { filename: string; url: string; blob: Blob; disabled: boolean; originalOrder: number }[] = [];
 let selectedPageIndex = -1;
 
 let rpc: any = null;
@@ -26,9 +26,11 @@ const loader = document.getElementById("loader") as HTMLDivElement;
 const autoScrollBtn = document.getElementById("autoScrollBtn") as HTMLButtonElement;
 const autoScrollSpeedInput = document.getElementById("autoScrollSpeed") as HTMLInputElement;
 const addPageBtn = document.getElementById("addPageBtn") as HTMLButtonElement;
+const resetOrderBtn = document.getElementById("resetOrderBtn") as HTMLButtonElement;
 
 let isScrollingProgrammatically = false;
 let autoScrollInterval: number | null = null;
+let draggedItemIndex: number | null = null;
 
 async function initRPC() {
   try {
@@ -262,7 +264,13 @@ async function openComicFile(file: any, filePath?: string) {
             if (!res.ok) throw new Error(`Fetch failed: ${res.statusText}`);
             const blob = await res.blob();
             if (index === 0) console.log(`[Frontend] Successfully fetched first image: ${file.name}`);
-            return { filename: file.name, url: URL.createObjectURL(blob), blob, disabled: false };
+            return {
+              filename: file.name,
+              url: URL.createObjectURL(blob),
+              blob,
+              disabled: false,
+              originalOrder: index
+            };
           } catch (err) {
             console.error(`[Frontend] Failed to fetch image ${file.name}:`, err);
             throw err;
@@ -320,13 +328,21 @@ async function loadCbz(arrayBuffer: ArrayBuffer): Promise<() => Promise<void>> {
     }
   }
 
+  // No default sorting to respect archive entry order
+
   pages = [];
 
   if (imageFiles.length === 0) return async () => { };
 
   // Load first page immediately so UI can show instantly
   const firstBlob = await zip.files[imageFiles[0]].async("blob");
-  pages.push({ filename: imageFiles[0], url: URL.createObjectURL(firstBlob), blob: firstBlob, disabled: false });
+  pages.push({
+    filename: imageFiles[0],
+    url: URL.createObjectURL(firstBlob),
+    blob: firstBlob,
+    disabled: false,
+    originalOrder: 0
+  });
 
   // Return a function to load the remaining pages in the background
   return async () => {
@@ -335,7 +351,13 @@ async function loadCbz(arrayBuffer: ArrayBuffer): Promise<() => Promise<void>> {
       imageFiles.slice(1).map((filename) => zip.files[filename].async("blob"))
     );
     imageFiles.slice(1).forEach((filename, i) => {
-      pages.push({ filename, url: URL.createObjectURL(restBlobs[i]), blob: restBlobs[i], disabled: false });
+      pages.push({
+        filename,
+        url: URL.createObjectURL(restBlobs[i]),
+        blob: restBlobs[i],
+        disabled: false,
+        originalOrder: i + 1
+      });
     });
     renderPageList();
     if (selectedPageIndex !== -1) {
@@ -354,14 +376,88 @@ function renderPageList() {
     item.className = "page-item" +
       (index === selectedPageIndex ? " selected" : "") +
       (page.disabled ? " page-disabled" : "");
+    item.draggable = true;
     item.innerHTML = `
       <img src="${page.url}" alt="Page ${index + 1}" loading="lazy">
       <div class="page-info">
         <div class="page-num">${index + 1}</div>
-        <div class="page-name">${page.filename}</div>
+        <div class="page-name" title="${page.filename}">${page.filename}</div>
       </div>
       <button class="remove-btn" data-index="${index}" title="${page.disabled ? "Restore" : "Remove"}">${page.disabled ? "+" : "×"}</button>
     `;
+
+    item.addEventListener("dragstart", (e) => {
+      draggedItemIndex = index;
+      item.classList.add("dragging");
+      if (e.dataTransfer) {
+        e.dataTransfer.effectAllowed = "move";
+        e.dataTransfer.setData("text/plain", index.toString());
+      }
+    });
+
+    item.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      if (draggedItemIndex === null || draggedItemIndex === index) return;
+
+      const rect = item.getBoundingClientRect();
+      const midpoint = rect.top + rect.height / 2;
+
+      item.classList.remove("drop-target-above", "drop-target-below");
+      if (e.clientY < midpoint) {
+        item.classList.add("drop-target-above");
+      } else {
+        item.classList.add("drop-target-below");
+      }
+    });
+
+    item.addEventListener("dragleave", () => {
+      item.classList.remove("drop-target-above", "drop-target-below");
+    });
+
+    item.addEventListener("drop", (e) => {
+      e.preventDefault();
+      item.classList.remove("drop-target-above", "drop-target-below");
+
+      if (draggedItemIndex === null || draggedItemIndex === index) return;
+
+      const rect = item.getBoundingClientRect();
+      const midpoint = rect.top + rect.height / 2;
+      let dropIndex = index;
+
+      if (e.clientY >= midpoint) {
+        dropIndex++;
+      }
+
+      // Adjust drop index if we're moving from before to after
+      if (draggedItemIndex < dropIndex) {
+        dropIndex--;
+      }
+
+      if (draggedItemIndex !== dropIndex) {
+        const [movedPage] = pages.splice(draggedItemIndex, 1);
+        pages.splice(dropIndex, 0, movedPage);
+
+        // Update selectedPageIndex
+        if (selectedPageIndex === draggedItemIndex) {
+          selectedPageIndex = dropIndex;
+        } else if (draggedItemIndex < selectedPageIndex && dropIndex >= selectedPageIndex) {
+          selectedPageIndex--;
+        } else if (draggedItemIndex > selectedPageIndex && dropIndex <= selectedPageIndex) {
+          selectedPageIndex++;
+        }
+
+        renderPageList();
+        selectPage(selectedPageIndex, true);
+      }
+    });
+
+    item.addEventListener("dragend", () => {
+      item.classList.remove("dragging");
+      draggedItemIndex = null;
+      document.querySelectorAll(".page-item").forEach(i =>
+        i.classList.remove("drop-target-above", "drop-target-below")
+      );
+    });
 
     item.addEventListener("click", (e) => {
       if (!(e.target as HTMLElement).classList.contains("remove-btn")) {
@@ -653,7 +749,8 @@ addPageBtn.addEventListener("click", async () => {
           filename: fileName,
           url: url,
           blob: blob,
-          disabled: false
+          disabled: false,
+          originalOrder: pages.length
         });
       }
 
@@ -667,6 +764,34 @@ addPageBtn.addEventListener("click", async () => {
       console.error("Error adding pages:", error);
       loader.classList.add("hidden");
     }
+  }
+});
+
+resetOrderBtn.addEventListener("click", () => {
+  try {
+    if (pages.length === 0) return;
+
+    console.log("[Frontend] Resetting page order...");
+
+    // Store current page to keep it selected after sort
+    const currentViewedPage = pages[selectedPageIndex];
+
+    // Naturally sort pages by original order
+    pages.sort((a, b) => a.originalOrder - b.originalOrder);
+
+    // Find where the page moved to
+    if (currentViewedPage) {
+      selectedPageIndex = pages.indexOf(currentViewedPage);
+    } else {
+      selectedPageIndex = 0;
+    }
+
+    renderPageList();
+    selectPage(selectedPageIndex);
+
+    console.log("[Frontend] Order reset complete.");
+  } catch (err) {
+    console.error("[Frontend] Error during order reset:", err);
   }
 });
 
@@ -700,11 +825,17 @@ openFolderBtn.addEventListener("click", async () => {
 
       if (response.success) {
         // Fetch images in parallel
-        const fetchPromises = response.files.map(async (file: any) => {
+        const fetchPromises = response.files.map(async (file: any, index: number) => {
           const readUrl = `http://localhost:${binaryConfig!.port}/file?path=${encodeURIComponent(file.path)}&token=${binaryConfig!.token}`;
           const res = await fetch(readUrl);
           const blob = await res.blob();
-          return { filename: file.name, url: URL.createObjectURL(blob), blob, disabled: false };
+          return {
+            filename: file.name,
+            url: URL.createObjectURL(blob),
+            blob,
+            disabled: false,
+            originalOrder: index
+          };
         });
 
         pages = await Promise.all(fetchPromises);

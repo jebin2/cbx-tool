@@ -336,6 +336,20 @@ button:disabled {
   transform: translateX(6px);
 }
 
+.page-item.dragging {
+  opacity: 0.5;
+  background: var(--surface-2);
+}
+
+.page-item.drop-target-above {
+  border-top: 2px solid var(--accent) !important;
+}
+
+.page-item.drop-target-below {
+  border-bottom: 2px solid var(--accent) !important;
+}
+
+
 /* thumbnail */
 .page-item img {
   width: 44px;
