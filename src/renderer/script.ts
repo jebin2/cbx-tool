@@ -23,8 +23,11 @@ const prevImage = document.getElementById("prevImage") as HTMLImageElement;
 const currentImage = document.getElementById("currentImage") as HTMLImageElement;
 const nextImage = document.getElementById("nextImage") as HTMLImageElement;
 const loader = document.getElementById("loader") as HTMLDivElement;
+const autoScrollBtn = document.getElementById("autoScrollBtn") as HTMLButtonElement;
+const autoScrollSpeedInput = document.getElementById("autoScrollSpeed") as HTMLInputElement;
 
 let isScrollingProgrammatically = false;
+let autoScrollInterval: number | null = null;
 
 async function initRPC() {
   try {
@@ -455,6 +458,50 @@ function closeRenameModal(name: string | null) {
   }
 }
 
+function stopAutoScroll() {
+  if (autoScrollInterval !== null) {
+    cancelAnimationFrame(autoScrollInterval);
+    autoScrollInterval = null;
+    autoScrollBtn.classList.remove("active");
+    document.querySelector(".auto-scroll-group")?.classList.remove("active");
+  }
+}
+
+function startAutoScroll() {
+  if (!pages.length) return;
+
+  // Force fit to width
+  const fitWidthBtn = document.getElementById("fitWidthBtn") as HTMLButtonElement;
+  if (!fitWidthBtn.classList.contains("active")) {
+    fitWidthBtn.click();
+  }
+
+  autoScrollBtn.classList.add("active");
+  document.querySelector(".auto-scroll-group")?.classList.add("active");
+
+  function scrollStep() {
+    const viewer = document.querySelector(".viewer");
+    if (viewer) {
+      // Speed multiplier (min 1 = 0.5px, max 10 = 5px per frame)
+      const speedSliderValue = parseInt(autoScrollSpeedInput.value || "2", 10);
+      const speed = speedSliderValue * 0.5;
+
+      viewer.scrollBy({ top: speed, behavior: "instant" });
+    }
+    autoScrollInterval = requestAnimationFrame(scrollStep);
+  }
+
+  autoScrollInterval = requestAnimationFrame(scrollStep);
+}
+
+autoScrollBtn.addEventListener("click", () => {
+  if (autoScrollInterval !== null) {
+    stopAutoScroll();
+  } else {
+    startAutoScroll();
+  }
+});
+
 cancelRenameBtn.addEventListener("click", () => closeRenameModal(null));
 confirmRenameBtn.addEventListener("click", () => closeRenameModal(renameInput.value));
 renameInput.addEventListener("keydown", (e) => {
@@ -797,6 +844,16 @@ document.addEventListener("keydown", (e) => {
     }
   } else if (e.key === "Delete" || e.key === "x") {
     togglePage(selectedPageIndex);
+  } else if (e.key === " " || e.key === "Spacebar") {
+    // Spacebar toggles auto-scroll or handles general scroll
+    if (isFitWidth) {
+      e.preventDefault();
+      if (autoScrollInterval !== null) {
+        stopAutoScroll();
+      } else {
+        startAutoScroll();
+      }
+    }
   }
 });
 

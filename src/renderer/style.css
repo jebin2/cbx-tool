@@ -943,3 +943,43 @@ button:disabled {
   box-shadow: 0 0 10px var(--accent-glow);
   border-radius: 0 2px 2px 0;
 }
+
+/* ── Auto Scroll ───────────────────────────────────── */
+.auto-scroll-group {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  background: transparent;
+  padding-right: 0;
+  border-radius: var(--r-md);
+  border: 1px solid transparent;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.auto-scroll-group.active {
+  background: var(--surface-0);
+  padding-right: 12px;
+  gap: 8px;
+  border-color: var(--border);
+}
+
+.auto-scroll-group:focus-within {
+  border-color: var(--border-strong);
+}
+
+.scroll-speed-slider {
+  width: 0;
+  opacity: 0;
+  cursor: pointer;
+  accent-color: var(--accent);
+  transition: width 0.3s ease, opacity 0.3s ease, margin 0.3s ease;
+  margin-left: 0;
+  pointer-events: none;
+}
+
+.auto-scroll-group.active .scroll-speed-slider {
+  width: 80px;
+  opacity: 1;
+  margin-left: 4px;
+  pointer-events: auto;
+}
