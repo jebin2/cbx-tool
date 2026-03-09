@@ -203,6 +203,7 @@ async function openComicFile(file: any, filePath?: string) {
 
       currentFile = arrayBuffer;
       document.getElementById("landingContainer")?.classList.add("hidden");
+      document.getElementById("progressBarContainer")?.classList.remove("hidden");
       previewContainer.classList.remove("hidden");
       previewContainer.classList.add("fit-height"); // Default viewing mode
 
@@ -270,6 +271,7 @@ async function openComicFile(file: any, filePath?: string) {
 
         currentFile = arrayBuffer;
         document.getElementById("landingContainer")?.classList.add("hidden");
+        document.getElementById("progressBarContainer")?.classList.remove("hidden");
         previewContainer.classList.remove("hidden");
         previewContainer.classList.add("fit-height");
 
@@ -371,6 +373,17 @@ function renderPageList() {
 
     pageList.appendChild(item);
   });
+
+  updateProgressBar();
+}
+
+function updateProgressBar() {
+  if (pages.length === 0) return;
+  const progress = ((selectedPageIndex + 1) / pages.length) * 100;
+  const progressBar = document.getElementById("progressBar");
+  if (progressBar) {
+    progressBar.style.width = `${progress}%`;
+  }
 }
 
 function selectPage(index: number, skipScrollBehavior = false) {
@@ -406,6 +419,8 @@ function selectPage(index: number, skipScrollBehavior = false) {
       (item as HTMLElement).scrollIntoView({ block: "nearest" });
     }
   });
+
+  updateProgressBar();
 }
 
 function togglePage(index: number) {
@@ -610,6 +625,7 @@ openFolderBtn.addEventListener("click", async () => {
         if (pages.length > 0) {
           selectedPageIndex = 0;
           document.getElementById("landingContainer")?.classList.add("hidden");
+          document.getElementById("progressBarContainer")?.classList.remove("hidden");
           previewContainer.classList.remove("hidden");
           previewContainer.classList.add("fit-height");
           document.querySelector(".sidebar")?.classList.remove("hidden");
