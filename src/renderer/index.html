@@ -20,30 +20,30 @@
 
     <div class="toolbar hidden">
       <div class="toolbar-actions">
-        <button id="openBtn">
+        <button id="openBtn" title="Open File">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
             stroke-linecap="round" stroke-linejoin="round">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
             <polyline points="17 8 12 3 7 8" />
             <line x1="12" y1="3" x2="12" y2="15" />
           </svg>
-          Open File
+          <!-- Open File -->
         </button>
-        <button id="openFolderBtn">
+        <button id="openFolderBtn" title="Open Folder">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
             stroke-linecap="round" stroke-linejoin="round">
             <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
           </svg>
-          Open Folder
+          <!-- Open Folder -->
         </button>
-        <button id="saveBtn" disabled>
+        <button id="saveBtn" disabled title="Save">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
             stroke-linecap="round" stroke-linejoin="round">
             <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
             <polyline points="17 21 17 13 7 13 7 21" />
             <polyline points="7 3 7 8 15 8" />
           </svg>
-          Save
+          <!-- Save -->
         </button>
         <button id="extractBtn" disabled title="Extract images to a folder">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
@@ -52,13 +52,13 @@
             <polyline points="7 10 12 15 17 10" />
             <line x1="12" y1="15" x2="12" y2="3" />
           </svg>
-          Extract
+          <!-- Extract -->
         </button>
 
         <div class="toolbar-divider"></div>
 
         <div class="auto-scroll-group">
-          <button id="autoScrollBtn" title="Auto Scroll (Spacebar in Fit Width)">
+          <button id="autoScrollBtn" title="Auto Scroll (in Fit Width)">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
               stroke-linecap="round" stroke-linejoin="round">
               <rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect>
@@ -66,7 +66,7 @@
               <path d="M12 6v6l2-2"></path>
               <path d="M12 12l-2-2"></path>
             </svg>
-            Auto Scroll
+            <!-- Auto Scroll -->
           </button>
           <input type="range" id="autoScrollSpeed" class="scroll-speed-slider" min="1" max="10" value="2"
             title="Scroll Speed">

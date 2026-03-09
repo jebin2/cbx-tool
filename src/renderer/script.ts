@@ -152,7 +152,6 @@ async function openKnownFile(filePath: string, fileName: string) {
       <polyline points="17 21 17 13 7 13 7 21" />
       <polyline points="7 3 7 8 15 8" />
     </svg>
-    Save
   `;
 
   document.getElementById("recentFilesContainer")?.classList.add("hidden");

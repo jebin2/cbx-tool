@@ -174,7 +174,7 @@ button:disabled {
 /* ── Toolbar Divider ───────────────────────────────── */
 .toolbar-divider {
   width: 1px;
-  height: 24px;
+  height: 38px;
   background: var(--border-strong);
   margin: 0 4px;
 }
