@@ -314,6 +314,38 @@ function togglePage(index: number) {
   selectPage(selectedPageIndex);
 }
 
+let renameResolve: ((name: string | null) => void) | null = null;
+const renameModal = document.getElementById("renameModal") as HTMLDivElement;
+const renameInput = document.getElementById("renameInput") as HTMLInputElement;
+const cancelRenameBtn = document.getElementById("cancelRenameBtn") as HTMLButtonElement;
+const confirmRenameBtn = document.getElementById("confirmRenameBtn") as HTMLButtonElement;
+
+function showRenameModal(defaultName: string): Promise<string | null> {
+  return new Promise((resolve) => {
+    renameInput.value = defaultName;
+    renameModal.classList.remove("hidden");
+    renameInput.focus();
+    renameInput.select();
+
+    renameResolve = resolve;
+  });
+}
+
+function closeRenameModal(name: string | null) {
+  renameModal.classList.add("hidden");
+  if (renameResolve) {
+    renameResolve(name);
+    renameResolve = null;
+  }
+}
+
+cancelRenameBtn.addEventListener("click", () => closeRenameModal(null));
+confirmRenameBtn.addEventListener("click", () => closeRenameModal(renameInput.value));
+renameInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") closeRenameModal(renameInput.value);
+  if (e.key === "Escape") closeRenameModal(null);
+});
+
 async function saveComic() {
   if (!pages.length) return;
 
@@ -339,6 +371,14 @@ async function saveComic() {
       } else {
         defaultSaveName = baseName + "_modified.cbz";
       }
+    }
+
+    const newName = await showRenameModal(defaultSaveName);
+    if (!newName) return;
+
+    defaultSaveName = newName;
+    if (!defaultSaveName.toLowerCase().endsWith(".cbz")) {
+      defaultSaveName += ".cbz";
     }
 
     let defaultPath = defaultSaveName;
