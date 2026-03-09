@@ -25,6 +25,7 @@ const nextImage = document.getElementById("nextImage") as HTMLImageElement;
 const loader = document.getElementById("loader") as HTMLDivElement;
 const autoScrollBtn = document.getElementById("autoScrollBtn") as HTMLButtonElement;
 const autoScrollSpeedInput = document.getElementById("autoScrollSpeed") as HTMLInputElement;
+const addPageBtn = document.getElementById("addPageBtn") as HTMLButtonElement;
 
 let isScrollingProgrammatically = false;
 let autoScrollInterval: number | null = null;
@@ -45,7 +46,7 @@ async function initRPC() {
             response: { canceled: boolean; filePath?: string };
           };
           showOpenDialog: {
-            params: { canChooseDirectory?: boolean };
+            params: { canChooseDirectory?: boolean; allowMultiple?: boolean; allowedFileTypes?: string };
             response: { canceled: boolean; filePaths: string[] };
           };
           getRecentFiles: {
@@ -626,6 +627,46 @@ openBtn.addEventListener("click", async () => {
     }
   } else {
     fileInput.click();
+  }
+});
+
+addPageBtn.addEventListener("click", async () => {
+  if (rpc && binaryConfig) {
+    try {
+      const result = await rpc.request.showOpenDialog({
+        canChooseDirectory: false,
+        allowMultiple: true,
+        allowedFileTypes: "*.jpg,*.jpeg,*.png,*.webp"
+      });
+      if (result.canceled || result.filePaths.length === 0) return;
+
+      loader.classList.remove("hidden");
+
+      for (const filePath of result.filePaths) {
+        const fileName = filePath.split(/[\\/]/).pop() || "";
+        const readUrl = `http://localhost:${binaryConfig.port}/file?path=${encodeURIComponent(filePath)}&token=${binaryConfig.token}`;
+        const response = await fetch(readUrl);
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+
+        pages.push({
+          filename: fileName,
+          url: url,
+          blob: blob,
+          disabled: false
+        });
+      }
+
+      renderPageList();
+      if (selectedPageIndex === -1 && pages.length > 0) {
+        selectPage(0);
+      }
+
+      loader.classList.add("hidden");
+    } catch (error) {
+      console.error("Error adding pages:", error);
+      loader.classList.add("hidden");
+    }
   }
 });
 

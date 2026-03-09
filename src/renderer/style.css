@@ -216,12 +216,35 @@ button:disabled {
 }
 
 .sidebar-header {
-  padding: 16px 18px 12px;
+  padding: 16px;
   border-bottom: 1px solid var(--border);
   display: flex;
   justify-content: space-between;
   align-items: center;
-  flex-shrink: 0;
+}
+
+.sidebar-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sidebar-action-btn {
+  background: none;
+  border: none;
+  color: var(--text-3);
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--r-sm);
+  transition: all 0.2s;
+}
+
+.sidebar-action-btn:hover {
+  color: var(--accent);
+  background: rgba(99, 102, 241, 0.1);
 }
 
 .sidebar-title {

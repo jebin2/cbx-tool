@@ -149,13 +149,19 @@ const rpc = defineElectrobunRPC("bun", {
         return { canceled: false, filePath: finalPath };
       },
 
-      showOpenDialog: async ({ canChooseDirectory = false }: any = {}) => {
-        console.log(`[Backend] showOpenDialog called, canChooseDirectory: ${canChooseDirectory}`);
+      showOpenDialog: async ({ canChooseDirectory = false, allowMultiple = false, allowedFileTypes = "" }: any = {}) => {
+        console.log(`[Backend] showOpenDialog called, canChooseDirectory: ${canChooseDirectory}, allowMultiple: ${allowMultiple}`);
+
+        let fileTypes = allowedFileTypes;
+        if (!fileTypes) {
+          fileTypes = canChooseDirectory ? "" : "*.cbz,*.cbr";
+        }
+
         const filePaths = await Electrobun.Utils.openFileDialog({
-          allowedFileTypes: canChooseDirectory ? "" : "*.cbz,*.cbr",
+          allowedFileTypes: fileTypes,
           canChooseFiles: !canChooseDirectory,
           canChooseDirectory: canChooseDirectory,
-          allowsMultipleSelection: false
+          allowsMultipleSelection: allowMultiple
         });
 
         console.log(`[Backend] openFileDialog result:`, filePaths);
