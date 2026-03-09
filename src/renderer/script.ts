@@ -109,8 +109,11 @@ async function openComicFile(file: any, filePath?: string) {
       currentFile = arrayBuffer;
       dropZone.classList.add("hidden");
       previewContainer.classList.remove("hidden");
+      previewContainer.classList.add("fit-height"); // Default viewing mode
 
       const sidebar = document.querySelector(".sidebar");
+      const viewer = document.querySelector(".viewer");
+      if (viewer) viewer.classList.add("has-content");
       if (sidebar) sidebar.classList.remove("hidden");
 
       const toolbar = document.querySelector(".toolbar");
@@ -173,8 +176,11 @@ async function openComicFile(file: any, filePath?: string) {
         currentFile = arrayBuffer;
         dropZone.classList.add("hidden");
         previewContainer.classList.remove("hidden");
+        previewContainer.classList.add("fit-height");
 
         const sidebar = document.querySelector(".sidebar");
+        const viewer = document.querySelector(".viewer");
+        if (viewer) viewer.classList.add("has-content");
         if (sidebar) sidebar.classList.remove("hidden");
 
         const toolbar = document.querySelector(".toolbar");
@@ -287,10 +293,10 @@ function selectPage(index: number, skipScrollBehavior = false) {
   if (pages[index + 1]) nextImage.src = pages[index + 1].url;
 
   const viewer = document.querySelector(".viewer");
-  const isZoomed = previewContainer.classList.contains("zoomed");
+  const isZoomed = false; // Zoom logic removed, handled continuously by CSS layout
 
-  if (viewer && isZoomed && !skipScrollBehavior) {
-    // When manually selecting a page while zoomed, scroll to the top of the current image
+  if (viewer && !skipScrollBehavior) {
+    // When manually selecting a page, scroll to the top of the current image
     isScrollingProgrammatically = true;
     requestAnimationFrame(() => {
       viewer.scrollTo({ top: currentImage.offsetTop, behavior: "instant" });
@@ -508,8 +514,10 @@ openFolderBtn.addEventListener("click", async () => {
           selectedPageIndex = 0;
           dropZone.classList.add("hidden");
           previewContainer.classList.remove("hidden");
+          previewContainer.classList.add("fit-height");
           document.querySelector(".sidebar")?.classList.remove("hidden");
           document.querySelector(".toolbar")?.classList.remove("hidden");
+          document.querySelector(".viewer")?.classList.add("has-content");
           saveBtn.disabled = false;
           extractBtn.disabled = true;
           renderPageList();
@@ -615,7 +623,7 @@ dropZone.addEventListener("drop", (e) => {
 const viewerNode = document.querySelector(".viewer");
 if (viewerNode) {
   viewerNode.addEventListener("scroll", () => {
-    if (!previewContainer.classList.contains("zoomed") || isScrollingProgrammatically) return;
+    if (!previewContainer.classList.contains("fit-width") || isScrollingProgrammatically) return;
 
     const st = viewerNode.scrollTop;
     const currentTop = currentImage.offsetTop;
@@ -626,7 +634,9 @@ if (viewerNode) {
       isScrollingProgrammatically = true;
       const offset = st - currentBottom;
       selectPage(selectedPageIndex + 1, true);
-      // Adjust scroll to make it seamless
+
+      // The new currentImage was just prevImage or newly loaded, we want to maintain the offset 
+      // relative to its new top position.
       requestAnimationFrame(() => {
         viewerNode.scrollTo({ top: currentImage.offsetTop + offset, behavior: "instant" });
         setTimeout(() => { isScrollingProgrammatically = false; }, 50);
@@ -635,11 +645,14 @@ if (viewerNode) {
     // If we scroll high into the previous image
     else if (st < currentTop - 200 && selectedPageIndex > 0) {
       isScrollingProgrammatically = true;
+      const offset = currentTop - st;
       selectPage(selectedPageIndex - 1, true);
-      // Adjust scroll to make it seamless
+
+      // When scrolling up, we want to end up near the *bottom* of the new currentImage 
+      // (which is the previous page) minus how far we scrolled past the threshold.
       requestAnimationFrame(() => {
-        // The new currentImage is the old prevImage, so scroll down by its height to maintain position relative to the top of the old currentImage
-        viewerNode.scrollTo({ top: viewerNode.scrollTop + currentImage.offsetHeight, behavior: "instant" });
+        const targetScrollTop = (currentImage.offsetTop + currentImage.offsetHeight) - offset;
+        viewerNode.scrollTo({ top: targetScrollTop, behavior: "instant" });
         setTimeout(() => { isScrollingProgrammatically = false; }, 50);
       });
     }
@@ -649,21 +662,21 @@ if (viewerNode) {
 document.addEventListener("keydown", (e) => {
   if (!pages.length) return;
   const viewer = document.querySelector(".viewer");
-  const isZoomed = previewContainer.classList.contains("zoomed");
+  const isFitWidth = previewContainer.classList.contains("fit-width");
 
   if (e.key === "ArrowRight") {
     if (selectedPageIndex < pages.length - 1) selectPage(selectedPageIndex + 1);
   } else if (e.key === "ArrowLeft") {
     if (selectedPageIndex > 0) selectPage(selectedPageIndex - 1);
   } else if (e.key === "ArrowDown") {
-    if (isZoomed && viewer) {
+    if (isFitWidth && viewer) {
       e.preventDefault();
       viewer.scrollBy({ top: 100, behavior: "smooth" });
     } else {
       if (selectedPageIndex < pages.length - 1) selectPage(selectedPageIndex + 1);
     }
   } else if (e.key === "ArrowUp") {
-    if (isZoomed && viewer) {
+    if (isFitWidth && viewer) {
       e.preventDefault();
       viewer.scrollBy({ top: -100, behavior: "smooth" });
     } else {
@@ -674,20 +687,27 @@ document.addEventListener("keydown", (e) => {
   }
 });
 
-previewContainer.addEventListener("dblclick", () => {
-  previewContainer.classList.toggle("zoomed");
-  const viewer = document.querySelector(".viewer");
-  if (viewer) {
-    viewer.classList.toggle("zoomed");
-    if (!previewContainer.classList.contains("zoomed")) {
-      viewer.scrollTo({ top: 0 }); // reset scroll
-    } else {
-      // if entering zoom mode, focus the current image
-      isScrollingProgrammatically = true;
-      requestAnimationFrame(() => {
-        viewer.scrollTo({ top: currentImage.offsetTop, behavior: "instant" });
-        setTimeout(() => { isScrollingProgrammatically = false; }, 50);
-      });
-    }
+const fitWidthBtn = document.getElementById("fitWidthBtn") as HTMLButtonElement;
+const fitHeightBtn = document.getElementById("fitHeightBtn") as HTMLButtonElement;
+
+fitWidthBtn.addEventListener("click", () => {
+  previewContainer.classList.remove("fit-height");
+  previewContainer.classList.add("fit-width");
+  fitHeightBtn.classList.remove("active");
+  fitWidthBtn.classList.add("active");
+
+  if (viewerNode) {
+    isScrollingProgrammatically = true;
+    requestAnimationFrame(() => {
+      viewerNode.scrollTo({ top: currentImage.offsetTop, behavior: "instant" });
+      setTimeout(() => { isScrollingProgrammatically = false; }, 50);
+    });
   }
+});
+
+fitHeightBtn.addEventListener("click", () => {
+  previewContainer.classList.remove("fit-width");
+  previewContainer.classList.add("fit-height");
+  fitWidthBtn.classList.remove("active");
+  fitHeightBtn.classList.add("active");
 });
