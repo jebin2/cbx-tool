@@ -1,40 +1,46 @@
 # CBX Tool 📚
 
-**CBX Tool** is a modern, ultra-fast, and minimalist comic book reader and editor built for the desktop. Designed with a focus on experience and performance, it supports a wide range of formats and features a unique seamless "Webtoon" reading mode.
+**CBX Tool** is a desktop comic reader and lightweight editor for `.cbz`, `.cbr`, and image-folder workflows. It is built for fast loading, clean navigation, and quick archive editing without leaving the app.
 
 ## Features ✨
 
--   **Wide Format Support**: Read `.cbz` (Zip), `.cbr` (RAR/RAR5), and even raw image folders directly.
--   **Webtoon Mode**: A seamless, gapless vertical scrolling experience using a 3-image sliding window for smooth transitions.
--   **Folder Workflows**: Open a folder of images, manage pages, and quickly "Convert to CBZ".
--   **"Extract to Folder"**: Easily unpack any comic archive back into its original image files.
--   **Modern Design**: A sleek, high-contrast dark theme with premium glassmorphism aesthetics.
--   **Lightweight & Fast**: Built with [Electrobun](https://electrobun.sh/) and the Bun runtime for a tiny memory footprint and near-instant startup.
+-   **Archive and folder support**: Open `.cbz`, `.cbr`, and raw image folders directly.
+-   **Fast vertical reading**: Read comics in a smooth stacked-image viewer optimized for quick scrolling.
+-   **Flexible viewing modes**: Switch between **Fit to Height** and **Fit to Width**, with optional auto-scroll and adjustable speed in width mode.
+-   **Page management tools**: Reorder pages with drag and drop, reset to the original order, and add multiple new image pages from the sidebar.
+-   **Progress-aware navigation**: A page progress bar and synced page list make it easier to track position in long chapters.
+-   **Recent files**: Reopen recently used comics from the landing screen.
+-   **Save and export workflows**: Save changes back to the archive, use **Save File As** to rename output before writing, or extract images to a folder.
+-   **Lightweight desktop stack**: Built with [Electrobun](https://electrobun.sh/) and Bun for fast startup and low overhead.
 
 ## Installation 🚀
 
-Download the latest version for your platform from the [Releases](https://github.com/jebin2/cbx-tool/releases) page.
+Download the latest build for your platform from the [Releases](https://github.com/jebin2/cbx-tool/releases) page.
 
--   **Linux**: Download `CBX-Tool-Linux.sh`, make it executable (`chmod +x`), and run it.
--   **macOS**: Download `CBX-Tool-macOS.dmg`, drag it to your Applications folder.
--   **Windows**: Download `CBX-Tool-Windows.exe` and follow the installer.
+-   **Linux**: Download `CBX-Tool-Linux.sh`, make it executable with `chmod +x`, then run it.
+-   **macOS**: Download `CBX-Tool-macOS.dmg` and drag the app into `Applications`.
+-   **Windows**: Download `CBX-Tool-Windows.exe` and run the installer.
 
 ## Development 🛠️
 
 To run the project locally:
 
-1.  **Install dependencies**:
+1.  Install dependencies:
     ```bash
     bun install
     ```
-2.  **Start in development mode**:
+2.  Start the development app:
     ```bash
     bun start
     ```
-3.  **Build stable binaries**:
+3.  Build a local production bundle:
+    ```bash
+    bun run build
+    ```
+4.  Build the stable release artifacts:
     ```bash
     bun run build:stable
     ```
 
 ---
-Built with ❤️ for comic lovers.
+Built for comic reading and quick archive editing.
