@@ -4,13 +4,19 @@
 
 ## Features ✨
 
+### Main Features
+
 -   **Archive and folder support**: Open `.cbz`, `.cbr`, and raw image folders directly.
 -   **Fast vertical reading**: Read comics in a smooth stacked-image viewer optimized for quick scrolling.
 -   **Flexible viewing modes**: Switch between **Fit to Height** and **Fit to Width**, with optional auto-scroll and adjustable speed in width mode.
--   **Page management tools**: Reorder pages with drag and drop, reset to the original order, and add multiple new image pages from the sidebar.
+-   **Page management tools**: Reorder pages with drag and drop, remove or restore pages, reset to the original order, and add multiple new image pages from the sidebar.
+-   **Save and export workflows**: Save changes back to the archive, use **Save File As** to rename output before writing, extract archive contents to a folder, or convert an image folder into a `.cbz`.
+
+### Other Features
+
 -   **Progress-aware navigation**: A page progress bar and synced page list make it easier to track position in long chapters.
--   **Recent files**: Reopen recently used comics from the landing screen.
--   **Save and export workflows**: Save changes back to the archive, use **Save File As** to rename output before writing, or extract images to a folder.
+-   **Recent files**: Reopen recently used comics from the landing screen, and clear the recent history when needed.
+-   **Keyboard and drag-and-drop support**: Use keyboard shortcuts for navigation and quick actions, or open files by dropping them onto the landing screen.
 -   **Lightweight desktop stack**: Built with [Electrobun](https://electrobun.sh/) and Bun for fast startup and low overhead.
 
 ## Installation 🚀
