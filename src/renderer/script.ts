@@ -150,6 +150,14 @@ extractBtn.addEventListener("click", async () => {
 
   const ext = getFileExtension(state.currentFilePath);
   const type = ext === ".cbr" ? "cbr" : "cbz";
+  const enabledFilenames = state.pages
+    .filter((page) => !page.disabled)
+    .map((page) => page.filename);
+
+  if (enabledFilenames.length === 0) {
+    alert("There are no enabled pages to extract.");
+    return;
+  }
 
   let result;
   try {
@@ -172,6 +180,7 @@ extractBtn.addEventListener("click", async () => {
       sourcePath: state.currentFilePath,
       destinationPath,
       type,
+      filenames: enabledFilenames,
     });
 
     if (response.success) {

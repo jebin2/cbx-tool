@@ -56,7 +56,12 @@ export type RPCType = {
         response: { success: boolean; error?: string; files: FileEntry[] };
       };
       extractArchiveToFolder: {
-        params: { sourcePath: string; destinationPath: string; type: "cbz" | "cbr" };
+        params: {
+          sourcePath: string;
+          destinationPath: string;
+          type: "cbz" | "cbr";
+          filenames: string[];
+        };
         response: { success: boolean; error?: string };
       };
     };

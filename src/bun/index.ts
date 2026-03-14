@@ -11,7 +11,12 @@ type AddRecentFileParams = { name: string; filePath: string };
 type ShowSaveDialogParams = { defaultPath: string };
 type ShowOpenDialogParams = { canChooseDirectory?: boolean; allowMultiple?: boolean; allowedFileTypes?: string };
 type ExtractCBRParams = { filePath: string };
-type ExtractArchiveToFolderParams = { sourcePath: string; destinationPath: string; type: "cbz" | "cbr" };
+type ExtractArchiveToFolderParams = {
+  sourcePath: string;
+  destinationPath: string;
+  type: "cbz" | "cbr";
+  filenames: string[];
+};
 type ReadFolderParams = { folderPath: string };
 
 // --- Shared RAR extractor factory ---
@@ -38,6 +43,7 @@ const securityToken = randomBytes(32).toString('hex');
 let serverPort = 0;
 const recentDir = join(homedir(), ".cbxtool");
 const recentFilePath = join(recentDir, "recent.json");
+const downloadsDir = join(homedir(), "Downloads");
 
 async function loadRecentFilesFromDisk(): Promise<RecentFileEntry[]> {
   const recentFile = Bun.file(recentFilePath);
@@ -159,7 +165,7 @@ const rpc = defineElectrobunRPC("bun", {
       },
       showSaveDialog: async ({ defaultPath }: ShowSaveDialogParams) => {
         const filePaths = await Electrobun.Utils.openFileDialog({
-          startingFolder: defaultPath.includes("/") ? defaultPath.slice(0, defaultPath.lastIndexOf("/")) : "~/",
+          startingFolder: downloadsDir,
           canChooseFiles: false,
           canChooseDirectory: true,
           allowsMultipleSelection: false
@@ -194,6 +200,7 @@ const rpc = defineElectrobunRPC("bun", {
         }
 
         const filePaths = await Electrobun.Utils.openFileDialog({
+          startingFolder: downloadsDir,
           allowedFileTypes: fileTypes,
           canChooseFiles: !canChooseDirectory,
           canChooseDirectory: canChooseDirectory,
@@ -242,17 +249,19 @@ const rpc = defineElectrobunRPC("bun", {
         }
       },
 
-      extractArchiveToFolder: async ({ sourcePath, destinationPath, type }: ExtractArchiveToFolderParams) => {
+      extractArchiveToFolder: async ({ sourcePath, destinationPath, type, filenames }: ExtractArchiveToFolderParams) => {
         console.log(`[Backend] extractArchiveToFolder: ${sourcePath} -> ${destinationPath} (${type})`);
 
         try {
           await mkdir(destinationPath, { recursive: true });
+          const allowedFilenames = new Set(filenames);
 
           if (type === "cbr") {
             const extractor = await createRarExtractor(sourcePath);
             const { files } = extractor.extract();
             for (const fileItem of files) {
               if (fileItem.fileHeader.flags.directory) continue;
+              if (!allowedFilenames.has(fileItem.fileHeader.name)) continue;
               const targetFile = join(destinationPath, basename(fileItem.fileHeader.name));
               if (fileItem.extraction) {
                 await Bun.write(targetFile, fileItem.extraction);
@@ -265,6 +274,7 @@ const rpc = defineElectrobunRPC("bun", {
 
             for (const [filename, file] of Object.entries(zip.files)) {
               if (file.dir) continue;
+              if (!allowedFilenames.has(filename)) continue;
               const content = await file.async("uint8array");
               const targetFile = join(destinationPath, basename(filename));
               await Bun.write(targetFile, content);
