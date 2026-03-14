@@ -300,7 +300,12 @@ export function setupPageListEvents() {
 
   pageList.addEventListener("dragleave", (e) => {
     const item = (e.target as HTMLElement).closest(".page-item") as HTMLElement | null;
-    if (item) item.classList.remove("drop-target-above", "drop-target-below");
+    if (!item) return;
+    // Only remove the indicator when the pointer truly leaves the item,
+    // not when it moves between the item's own children (img → page-info etc.).
+    if (!item.contains(e.relatedTarget as Node | null)) {
+      item.classList.remove("drop-target-above", "drop-target-below");
+    }
   });
 
   pageList.addEventListener("drop", (e) => {

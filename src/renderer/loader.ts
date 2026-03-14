@@ -1,4 +1,4 @@
-import type { FileEntry, OpenableFile } from "./types.ts";
+import type { OpenableFile } from "./types.ts";
 import { state } from "./state.ts";
 import {
   dropZone,
@@ -154,6 +154,3 @@ export async function loadRecentFiles() {
   }
 }
 
-export async function loadPagesFromFiles(files: FileEntry[], startingOrder = 0) {
-  return loadPagesFromBridgeFiles(files, startingOrder);
-}
