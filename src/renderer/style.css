@@ -171,6 +171,18 @@ button:disabled {
   color: #a5b4fc;
 }
 
+#copyBtn.success:not(:disabled) {
+  background: var(--green-bg);
+  border-color: var(--green-border);
+  color: var(--green);
+}
+
+#copyBtn.error:not(:disabled) {
+  background: var(--red-bg);
+  border-color: var(--red-border);
+  color: var(--red);
+}
+
 /* ── Toolbar Divider ───────────────────────────────── */
 .toolbar-divider {
   width: 1px;

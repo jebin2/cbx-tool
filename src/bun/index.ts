@@ -28,6 +28,16 @@ const server = Bun.serve({
       return new Response("Unauthorized", { status: 401, headers });
     }
 
+    if (req.method === "POST" && url.pathname === "/clipboard-image") {
+      try {
+        const arrayBuffer = await req.arrayBuffer();
+        Electrobun.Utils.clipboardWriteImage(new Uint8Array(arrayBuffer));
+        return new Response(JSON.stringify({ success: true }), { headers });
+      } catch (e) {
+        return new Response(JSON.stringify({ success: false, error: (e as Error).message }), { status: 500, headers });
+      }
+    }
+
     const filePath = url.searchParams.get("path");
     if (!filePath) return new Response("Missing path", { status: 400, headers });
 
