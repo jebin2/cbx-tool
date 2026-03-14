@@ -8,6 +8,7 @@ import {
 } from "./dom.ts";
 import { getFileExtension, getFileName, waitForUiTick } from "./utils.ts";
 import { fetchBridgeFile } from "./bridge.ts";
+import { showMessageModal } from "./modal.ts";
 import { loadCbz, loadPagesFromBridgeFiles } from "./pages.ts";
 import {
   applyOpenedPages,
@@ -94,8 +95,11 @@ export async function openComicFile(file: OpenableFile, filePath?: string) {
     throw new Error("Please select a .cbz or .cbr file");
   } catch (error) {
     console.error("Error opening file:", error);
-    alert("Error opening file: " + (error as Error).message);
     setLoaderVisible(false);
+    await showMessageModal({
+      title: "Open Failed",
+      message: "Error opening file: " + (error as Error).message,
+    });
   }
 }
 
@@ -111,8 +115,11 @@ export async function openKnownFile(filePath: string, fileName: string) {
     await openComicFile(file, filePath);
   } catch (error) {
     console.error("Failed to open recent file:", error);
-    alert("Could not open file.");
     setLoaderVisible(false);
+    await showMessageModal({
+      title: "Open Failed",
+      message: "Could not open file.",
+    });
   }
 }
 
@@ -153,4 +160,3 @@ export async function loadRecentFiles() {
     console.error("Failed to load recent files:", error);
   }
 }
-

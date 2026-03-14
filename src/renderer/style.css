@@ -925,7 +925,14 @@ button:disabled {
   margin: 0;
 }
 
-.rename-input {
+.modal-message {
+  margin: 0;
+  color: var(--text-2);
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+.modal-input {
   background: var(--surface-0);
   border: 1px solid var(--border);
   color: var(--text);
@@ -937,7 +944,7 @@ button:disabled {
   transition: border-color 0.2s;
 }
 
-.rename-input:focus {
+.modal-input:focus {
   border-color: var(--accent);
 }
 

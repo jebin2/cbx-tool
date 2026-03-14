@@ -24,6 +24,7 @@ import {
 import { SCROLL_FLAG_RESET_DELAY_MS } from "./constants.ts";
 import { getFileExtension, getFileName, getFolderName, waitForUiTick } from "./utils.ts";
 import { fetchBridgeFile, initRPC } from "./bridge.ts";
+import { showMessageModal, setupModalListeners } from "./modal.ts";
 import { disposePages, loadPagesFromBridgeFiles } from "./pages.ts";
 import {
   applyOpenedPages,
@@ -36,7 +37,7 @@ import {
 } from "./ui.ts";
 import { openComicFile, startOpenRequest, isActiveOpenRequest, loadRecentFiles } from "./loader.ts";
 import { copyCurrentPageToClipboard } from "./clipboard.ts";
-import { saveComic, setupRenameModalListeners } from "./save.ts";
+import { saveComic } from "./save.ts";
 import {
   startAutoScroll,
   stopAutoScroll,
@@ -47,7 +48,7 @@ import {
 // ─── Initialization ───────────────────────────────────────────────────────────
 
 initRPC(() => loadRecentFiles());
-setupRenameModalListeners();
+setupModalListeners();
 setupScrollHandler();
 setupKeyboardHandler();
 setupPageListEvents();
@@ -93,7 +94,10 @@ openBtn.addEventListener("click", async () => {
 
 openFolderBtn.addEventListener("click", async () => {
   if (!state.rpc || !state.binaryConfig) {
-    alert("Folder selection is only supported in the desktop app.");
+    await showMessageModal({
+      title: "Desktop Only",
+      message: "Folder selection is only supported in the desktop app.",
+    });
     return;
   }
 
@@ -121,13 +125,21 @@ openFolderBtn.addEventListener("click", async () => {
 
       if (nextPages.length > 0) {
         applyOpenedPages(nextPages, false);
+        setLoaderVisible(false);
       } else {
-        alert("No images found in the selected folder.");
+        setLoaderVisible(false);
+        await showMessageModal({
+          title: "No Images Found",
+          message: "No images found in the selected folder.",
+        });
       }
     } else {
-      alert("Error reading folder: " + response.error);
+      setLoaderVisible(false);
+      await showMessageModal({
+        title: "Folder Read Failed",
+        message: "Error reading folder: " + response.error,
+      });
     }
-    setLoaderVisible(false);
   } catch (error) {
     console.error("Folder open failed:", error);
     setLoaderVisible(false);
@@ -139,12 +151,18 @@ copyBtn.addEventListener("click", copyCurrentPageToClipboard);
 
 extractBtn.addEventListener("click", async () => {
   if (!state.currentFilePath) {
-    alert("File path not detected. Please open using the 'Open' button.");
+    await showMessageModal({
+      title: "Missing File Path",
+      message: "File path not detected. Please open using the 'Open' button.",
+    });
     return;
   }
 
   if (!state.rpc) {
-    alert("RPC not available.");
+    await showMessageModal({
+      title: "RPC Unavailable",
+      message: "RPC not available.",
+    });
     return;
   }
 
@@ -155,7 +173,10 @@ extractBtn.addEventListener("click", async () => {
     .map((page) => page.filename);
 
   if (enabledFilenames.length === 0) {
-    alert("There are no enabled pages to extract.");
+    await showMessageModal({
+      title: "Nothing To Extract",
+      message: "There are no enabled pages to extract.",
+    });
     return;
   }
 
@@ -164,7 +185,10 @@ extractBtn.addEventListener("click", async () => {
     result = await state.rpc.request.showOpenDialog({ canChooseDirectory: true });
   } catch (rpcErr) {
     console.error("[Frontend] RPC showOpenDialog failed:", rpcErr);
-    alert("System error: Could not open folder picker. See console for details.");
+    await showMessageModal({
+      title: "Folder Picker Failed",
+      message: "System error: Could not open folder picker. See console for details.",
+    });
     return;
   }
 
@@ -183,16 +207,26 @@ extractBtn.addEventListener("click", async () => {
       filenames: enabledFilenames,
     });
 
+    setLoaderVisible(false);
+
     if (response.success) {
-      alert("Successfully extracted to: " + destinationPath);
+      await showMessageModal({
+        title: "Extraction Complete",
+        message: "Successfully extracted to: " + destinationPath,
+      });
     } else {
-      alert("Extraction failed: " + response.error);
+      await showMessageModal({
+        title: "Extraction Failed",
+        message: "Extraction failed: " + response.error,
+      });
     }
   } catch (err) {
     console.error("Extraction error:", err);
-    alert("Error during extraction: " + err);
-  } finally {
     setLoaderVisible(false);
+    await showMessageModal({
+      title: "Extraction Error",
+      message: "Error during extraction: " + err,
+    });
   }
 });
 

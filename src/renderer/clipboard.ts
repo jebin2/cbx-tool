@@ -1,4 +1,5 @@
 import { copyBtn, copyBtnLabel, currentImage } from "./dom.ts";
+import { showMessageModal } from "./modal.ts";
 import { state } from "./state.ts";
 import { createBridgeUrl } from "./bridge.ts";
 import { clearCopyButtonFeedback, setCopyButtonFeedback, updateCopyButtonState } from "./ui.ts";
@@ -104,7 +105,10 @@ export async function copyCurrentPageToClipboard() {
   } catch (error) {
     console.error("Error copying page to clipboard:", error);
     setCopyButtonFeedback("error", "Retry", "Copy failed");
-    alert("Could not copy the current page to the clipboard: " + (error as Error).message);
+    await showMessageModal({
+      title: "Copy Failed",
+      message: "Could not copy the current page to the clipboard: " + (error as Error).message,
+    });
   } finally {
     updateCopyButtonState();
   }

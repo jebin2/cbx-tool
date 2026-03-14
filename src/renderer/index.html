@@ -160,13 +160,14 @@
     </div>
   </div>
 
-  <div id="renameModal" class="modal hidden">
+  <div id="appModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="appModalTitle">
     <div class="modal-content">
-      <h3>Save File As</h3>
-      <input type="text" id="renameInput" class="rename-input" />
+      <h3 id="appModalTitle">Notice</h3>
+      <p id="appModalMessage" class="modal-message hidden"></p>
+      <input type="text" id="appModalInput" class="modal-input hidden" />
       <div class="modal-actions">
-        <button id="cancelRenameBtn" class="btn-secondary">Cancel</button>
-        <button id="confirmRenameBtn" class="btn-primary">Save</button>
+        <button id="appModalCancelBtn" class="btn-secondary hidden">Cancel</button>
+        <button id="appModalConfirmBtn" class="btn-primary">OK</button>
       </div>
     </div>
   </div>

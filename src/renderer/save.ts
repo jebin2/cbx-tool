@@ -1,38 +1,8 @@
 import JSZip from "jszip";
-import { cancelRenameBtn, confirmRenameBtn, renameInput, renameModal } from "./dom.ts";
+import { showMessageModal, showPromptModal } from "./modal.ts";
 import { state } from "./state.ts";
 import { getFileExtension, getParentPath } from "./utils.ts";
 import { writeBridgeFile } from "./bridge.ts";
-
-// Local modal state — only used within this module
-let renameResolve: ((name: string | null) => void) | null = null;
-
-export function showRenameModal(defaultName: string): Promise<string | null> {
-  return new Promise((resolve) => {
-    renameInput.value = defaultName;
-    renameModal.classList.remove("hidden");
-    renameInput.focus();
-    renameInput.select();
-    renameResolve = resolve;
-  });
-}
-
-export function closeRenameModal(name: string | null) {
-  renameModal.classList.add("hidden");
-  if (renameResolve) {
-    renameResolve(name);
-    renameResolve = null;
-  }
-}
-
-export function setupRenameModalListeners() {
-  cancelRenameBtn.addEventListener("click", () => closeRenameModal(null));
-  confirmRenameBtn.addEventListener("click", () => closeRenameModal(renameInput.value));
-  renameInput.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") closeRenameModal(renameInput.value);
-    if (e.key === "Escape") closeRenameModal(null);
-  });
-}
 
 export async function saveComic() {
   if (!state.pages.length) return;
@@ -61,7 +31,11 @@ export async function saveComic() {
       }
     }
 
-    const newName = await showRenameModal(defaultSaveName);
+    const newName = await showPromptModal({
+      title: "Save File As",
+      defaultValue: defaultSaveName,
+      confirmLabel: "Save",
+    });
     if (!newName) return;
 
     defaultSaveName = newName;
@@ -75,7 +49,10 @@ export async function saveComic() {
     }
 
     if (!state.rpc || !state.binaryConfig) {
-      alert("RPC not initialized. Using browser download instead.");
+      await showMessageModal({
+        title: "Browser Download",
+        message: "RPC not initialized. Using browser download instead.",
+      });
       const blob = new Blob([new Uint8Array(arrayBuffer)], { type: "application/zip" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -93,9 +70,15 @@ export async function saveComic() {
     }
 
     await writeBridgeFile(result.filePath, arrayBuffer);
-    alert(`Saved to ${result.filePath}`);
+    await showMessageModal({
+      title: "Saved",
+      message: `Saved to ${result.filePath}`,
+    });
   } catch (error) {
     console.error("Error saving file:", error);
-    alert("Error saving file: " + (error as Error).message);
+    await showMessageModal({
+      title: "Save Failed",
+      message: "Error saving file: " + (error as Error).message,
+    });
   }
 }
