@@ -78,6 +78,43 @@ export function showViewer(canExtract: boolean) {
   extractBtn.disabled = !canExtract;
 }
 
+export function showLandingPage() {
+  replacePages([]);
+  state.currentFileName = "";
+  state.currentFilePath = null;
+  state.isFolderMode = false;
+  state.selectedPageIndex = -1;
+
+  pageList.innerHTML = "";
+  pageCount.textContent = "—";
+  progressBar.style.width = "0%";
+  progressBarContainer.classList.add("hidden");
+  previewContainer.classList.add("hidden");
+  previewContainer.classList.remove("fit-width", "fit-height");
+  fitWidthBtn.classList.remove("active");
+  fitHeightBtn.classList.add("active");
+  sidebar?.classList.add("hidden");
+  toolbar?.classList.add("hidden");
+  landingContainer.classList.remove("hidden");
+  dropZone.classList.remove("hidden");
+  recentFilesContainer.classList.remove("hidden");
+  viewerNode?.classList.remove("has-content");
+
+  prevImage.removeAttribute("src");
+  currentImage.removeAttribute("src");
+  nextImage.removeAttribute("src");
+
+  saveBtn.disabled = true;
+  extractBtn.disabled = true;
+  copyBtn.disabled = true;
+  clearCopyButtonFeedback();
+  setLoaderVisible(false);
+
+  if (viewerNode) {
+    viewerNode.scrollTo({ top: 0, behavior: "instant" });
+  }
+}
+
 // ─── Progress / copy button ───────────────────────────────────────────────────
 
 export function updateProgressBar() {

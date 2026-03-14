@@ -1,6 +1,9 @@
 export const fileInput = document.getElementById("fileInput") as HTMLInputElement;
+export const homeBtn = document.getElementById("homeBtn") as HTMLButtonElement;
 export const openBtn = document.getElementById("openBtn") as HTMLButtonElement;
 export const openFolderBtn = document.getElementById("openFolderBtn") as HTMLButtonElement;
+export const landingOpenBtn = document.getElementById("landingOpenBtn") as HTMLButtonElement;
+export const landingOpenFolderBtn = document.getElementById("landingOpenFolderBtn") as HTMLButtonElement;
 export const saveBtn = document.getElementById("saveBtn") as HTMLButtonElement;
 export const extractBtn = document.getElementById("extractBtn") as HTMLButtonElement;
 export const copyBtn = document.getElementById("copyBtn") as HTMLButtonElement;

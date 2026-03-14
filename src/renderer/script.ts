@@ -11,7 +11,10 @@ import {
   fileInput,
   fitHeightBtn,
   fitWidthBtn,
+  homeBtn,
   landingContainer,
+  landingOpenBtn,
+  landingOpenFolderBtn,
   openBtn,
   openFolderBtn,
   previewContainer,
@@ -33,6 +36,7 @@ import {
   selectPage,
   setLoaderVisible,
   setSaveButtonMode,
+  showLandingPage,
   setupPageListEvents,
 } from "./ui.ts";
 import { openComicFile, startOpenRequest, isActiveOpenRequest, loadRecentFiles } from "./loader.ts";
@@ -66,7 +70,7 @@ fileInput.addEventListener("change", async () => {
   await openComicFile(file, file.path);
 });
 
-openBtn.addEventListener("click", async () => {
+async function openArchiveFromPicker() {
   if (state.rpc && state.binaryConfig) {
     try {
       const result = await state.rpc.request.showOpenDialog({ canChooseDirectory: false });
@@ -90,9 +94,9 @@ openBtn.addEventListener("click", async () => {
   } else {
     fileInput.click();
   }
-});
+}
 
-openFolderBtn.addEventListener("click", async () => {
+async function openFolderFromPicker() {
   if (!state.rpc || !state.binaryConfig) {
     await showMessageModal({
       title: "Desktop Only",
@@ -144,6 +148,16 @@ openFolderBtn.addEventListener("click", async () => {
     console.error("Folder open failed:", error);
     setLoaderVisible(false);
   }
+}
+
+openBtn.addEventListener("click", openArchiveFromPicker);
+landingOpenBtn.addEventListener("click", openArchiveFromPicker);
+openFolderBtn.addEventListener("click", openFolderFromPicker);
+landingOpenFolderBtn.addEventListener("click", openFolderFromPicker);
+homeBtn.addEventListener("click", async () => {
+  startOpenRequest();
+  showLandingPage();
+  await loadRecentFiles();
 });
 
 saveBtn.addEventListener("click", saveComic);
@@ -327,7 +341,7 @@ dropZone.addEventListener("dragover", (e) => {
 });
 
 dropZone.addEventListener("click", () => {
-  openBtn.click();
+  void openArchiveFromPicker();
 });
 
 dropZone.addEventListener("dragleave", () => {

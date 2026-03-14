@@ -87,7 +87,7 @@ body {
   height: 54px;
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: space-between;
   padding: 0 16px;
   background: var(--surface-0);
   backdrop-filter: var(--blur);
@@ -101,6 +101,22 @@ body {
 .toolbar-actions {
   display: flex;
   gap: 10px;
+}
+
+.home-btn {
+  padding: 0;
+  width: 40px;
+  height: 40px;
+  background: rgba(255, 255, 255, 0.04);
+  overflow: hidden;
+}
+
+.home-badge {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  filter: drop-shadow(0 6px 16px rgba(99, 102, 241, 0.18));
 }
 
 /* ── Buttons (global) ──────────────────────────────── */
@@ -570,6 +586,33 @@ button:disabled {
   }
 }
 
+.landing-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  margin-top: 20px;
+  flex-wrap: wrap;
+}
+
+.landing-action-btn {
+  min-width: 160px;
+  height: 42px;
+  padding: 0 20px;
+}
+
+.landing-action-btn-primary {
+  background: rgba(99, 102, 241, 0.18);
+  border-color: rgba(99, 102, 241, 0.45);
+  color: #c7d2fe;
+}
+
+.landing-action-btn-primary:hover:not(:disabled) {
+  background: rgba(99, 102, 241, 0.28);
+  border-color: rgba(99, 102, 241, 0.65);
+  color: #e0e7ff;
+}
+
 /* ── Recent Files ──────────────────────────────────── */
 .recent-files-container {
   width: 100%;
@@ -830,6 +873,10 @@ button:disabled {
 }
 
 @media (max-width: 650px) {
+  .toolbar {
+    padding: 0 12px;
+  }
+
   .sidebar {
     width: 80px;
     transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -877,6 +924,15 @@ button:disabled {
 
   .drop-zone {
     padding: 40px;
+  }
+
+  .landing-actions {
+    width: 100%;
+    gap: 10px;
+  }
+
+  .landing-action-btn {
+    width: 100%;
   }
 
   .drop-zone p {

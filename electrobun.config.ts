@@ -20,6 +20,7 @@ export default {
       "src/renderer/index.html": "views/mainview/index.html",
       "src/renderer/style.css": "views/mainview/style.css",
       "resources/icon-transparent.png": "icon.png",
+      "resources/icon-transparent.png": "views/mainview/icon.png",
     },
   },
   runtime: {
