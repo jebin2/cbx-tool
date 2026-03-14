@@ -1,13 +1,93 @@
 import JSZip from "jszip";
 
-let currentFile: ArrayBuffer | null = null;
+type ComicPage = {
+  filename: string;
+  url: string;
+  blob: Blob;
+  disabled: boolean;
+  originalOrder: number;
+};
+
+type BinaryConfig = {
+  port: number;
+  token: string;
+};
+
+type FileEntry = {
+  name: string;
+  path: string;
+};
+
+type OpenableFile = File & {
+  path?: string;
+};
+
+type RPCType = {
+  bun: {
+    requests: {
+      getBinaryConfig: {
+        params: Record<string, never>;
+        response: BinaryConfig;
+      };
+      showSaveDialog: {
+        params: { defaultPath: string };
+        response: { canceled: boolean; filePath?: string };
+      };
+      showOpenDialog: {
+        params: { canChooseDirectory?: boolean; allowMultiple?: boolean; allowedFileTypes?: string };
+        response: { canceled: boolean; filePaths: string[] };
+      };
+      getRecentFiles: {
+        params: Record<string, never>;
+        response: FileEntry[];
+      };
+      addRecentFile: {
+        params: { name: string; filePath: string };
+        response: { success: boolean };
+      };
+      clearRecentFiles: {
+        params: Record<string, never>;
+        response: { success: boolean };
+      };
+      extractCBR: {
+        params: { filePath: string };
+        response: { success: boolean; error?: string; files: FileEntry[] };
+      };
+      readFolder: {
+        params: { folderPath: string };
+        response: { success: boolean; error?: string; files: FileEntry[] };
+      };
+      extractArchiveToFolder: {
+        params: { sourcePath: string; destinationPath: string; type: "cbz" | "cbr" };
+        response: { success: boolean; error?: string };
+      };
+    };
+    messages: {};
+    push: {};
+  };
+  webview: {
+    requests: {};
+    messages: {};
+    push: {};
+  };
+};
+
 let currentFileName = "";
 let currentFilePath: string | null = null;
-let pages: { filename: string; url: string; blob: Blob; disabled: boolean; originalOrder: number }[] = [];
+let pages: ComicPage[] = [];
 let selectedPageIndex = -1;
+let openRequestId = 0;
 
-let rpc: any = null;
-let binaryConfig: { port: number; token: string } | null = null;
+type RPC = {
+  request: {
+    [K in keyof RPCType["bun"]["requests"]]: (
+      params: RPCType["bun"]["requests"][K]["params"]
+    ) => Promise<RPCType["bun"]["requests"][K]["response"]>;
+  };
+};
+
+let rpc: RPC | null = null;
+let binaryConfig: BinaryConfig | null = null;
 
 const fileInput = document.getElementById("fileInput") as HTMLInputElement;
 const openBtn = document.getElementById("openBtn") as HTMLButtonElement;
@@ -20,6 +100,11 @@ let isFolderMode = false;
 const pageList = document.getElementById("pageList") as HTMLDivElement;
 const pageCount = document.getElementById("pageCount") as HTMLSpanElement;
 const dropZone = document.getElementById("dropZone") as HTMLDivElement;
+const landingContainer = document.getElementById("landingContainer") as HTMLDivElement;
+const recentFilesContainer = document.getElementById("recentFilesContainer") as HTMLDivElement;
+const recentFilesList = document.getElementById("recentFilesList") as HTMLDivElement;
+const progressBarContainer = document.getElementById("progressBarContainer") as HTMLDivElement;
+const progressBar = document.getElementById("progressBar") as HTMLDivElement;
 const previewContainer = document.getElementById("previewContainer") as HTMLDivElement;
 const prevImage = document.getElementById("prevImage") as HTMLImageElement;
 const currentImage = document.getElementById("currentImage") as HTMLImageElement;
@@ -29,6 +114,13 @@ const autoScrollBtn = document.getElementById("autoScrollBtn") as HTMLButtonElem
 const autoScrollSpeedInput = document.getElementById("autoScrollSpeed") as HTMLInputElement;
 const addPageBtn = document.getElementById("addPageBtn") as HTMLButtonElement;
 const resetOrderBtn = document.getElementById("resetOrderBtn") as HTMLButtonElement;
+const fitWidthBtn = document.getElementById("fitWidthBtn") as HTMLButtonElement;
+const fitHeightBtn = document.getElementById("fitHeightBtn") as HTMLButtonElement;
+const clearRecentBtn = document.getElementById("clearRecentBtn") as HTMLButtonElement | null;
+const sidebar = document.querySelector(".sidebar") as HTMLElement | null;
+const toolbar = document.querySelector(".toolbar") as HTMLElement | null;
+const viewerNode = document.querySelector(".viewer") as HTMLElement | null;
+const autoScrollGroup = document.querySelector(".auto-scroll-group") as HTMLElement | null;
 
 let isScrollingProgrammatically = false;
 let autoScrollInterval: number | null = null;
@@ -37,62 +129,189 @@ let dragScrollRequest: number | null = null;
 let lastDragClientY = 0;
 let copyFeedbackTimeout: number | null = null;
 
+// --- UI constants ---
 const copyBtnDefaultLabel = "Copy";
 const copyBtnDefaultTitle = "Copy current page image to clipboard";
+const imageExtensions = [".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"];
+
+// Threshold (px) from the edge of the page list that triggers auto-scroll during drag
+const DRAG_SCROLL_THRESHOLD = 60;
+// Maximum pixels scrolled per animation frame during drag
+const DRAG_SCROLL_MAX_SPEED = 15;
+// How long (ms) the copy-button success/error feedback stays visible
+const COPY_FEEDBACK_DURATION_MS = 1600;
+// How far (px) into the next/prev image the viewer must scroll before switching pages
+const PAGE_SWITCH_SCROLL_THRESHOLD = 200;
+// Delay (ms) before clearing the programmatic-scroll guard flag after a scroll call
+const SCROLL_FLAG_RESET_DELAY_MS = 50;
+
+function setLoaderVisible(isVisible: boolean) {
+  loader.classList.toggle("hidden", !isVisible);
+}
+
+function setSaveButtonMode(mode: "save" | "convert") {
+  isFolderMode = mode === "convert";
+  saveBtn.innerHTML = mode === "convert"
+    ? `
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round">
+          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l2 3h9a2 2 0 0 1 2 2z" />
+          <polyline points="12 11 12 17M9 14l3 3 3-3" />
+        </svg>
+        Convert to CBZ
+      `
+    : `
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round">
+          <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+          <polyline points="17 21 17 13 7 13 7 21" />
+          <polyline points="7 3 7 8 15 8" />
+        </svg>
+        Save
+      `;
+}
+
+function getFileExtension(filename: string): string {
+  const lastDot = filename.lastIndexOf(".");
+  return lastDot === -1 ? "" : filename.toLowerCase().slice(lastDot);
+}
+
+function getFileName(filePath: string): string {
+  return filePath.split(/[\\/]/).pop() || "";
+}
+
+function getFolderName(folderPath: string): string {
+  return folderPath.split(/[\\/]/).filter(Boolean).pop() || "Images";
+}
+
+function getParentPath(filePath: string): string {
+  const lastSlash = Math.max(filePath.lastIndexOf("\\"), filePath.lastIndexOf("/"));
+  return lastSlash === -1 ? "" : filePath.slice(0, lastSlash + 1);
+}
+
+function createBridgeUrl(pathname: string, params: Record<string, string> = {}) {
+  if (!binaryConfig) {
+    throw new Error("Binary bridge is not available.");
+  }
+
+  const url = new URL(`http://localhost:${binaryConfig.port}${pathname}`);
+  url.searchParams.set("token", binaryConfig.token);
+  Object.entries(params).forEach(([key, value]) => {
+    url.searchParams.set(key, value);
+  });
+  return url.toString();
+}
+
+function createPage(filename: string, blob: Blob, originalOrder: number): ComicPage {
+  return {
+    filename,
+    url: URL.createObjectURL(blob),
+    blob,
+    disabled: false,
+    originalOrder,
+  };
+}
+
+function disposePages(pageList: ComicPage[]) {
+  pageList.forEach((page) => URL.revokeObjectURL(page.url));
+}
+
+function replacePages(nextPages: ComicPage[]) {
+  disposePages(pages);
+  pages = nextPages;
+}
+
+function resetPageSelection() {
+  selectedPageIndex = -1;
+  updateCopyButtonState();
+  updateProgressBar();
+}
+
+function startOpenRequest() {
+  openRequestId += 1;
+  stopAutoScroll();
+  return openRequestId;
+}
+
+function isActiveOpenRequest(requestId: number) {
+  return requestId === openRequestId;
+}
+
+function showViewer(canExtract: boolean) {
+  landingContainer.classList.add("hidden");
+  recentFilesContainer.classList.add("hidden");
+  dropZone.classList.add("hidden");
+  progressBarContainer.classList.remove("hidden");
+  previewContainer.classList.remove("hidden");
+  previewContainer.classList.remove("fit-width");
+  previewContainer.classList.add("fit-height");
+  fitWidthBtn.classList.remove("active");
+  fitHeightBtn.classList.add("active");
+  viewerNode?.classList.add("has-content");
+  sidebar?.classList.remove("hidden");
+  toolbar?.classList.remove("hidden");
+  saveBtn.disabled = false;
+  extractBtn.disabled = !canExtract;
+}
+
+function applyOpenedPages(nextPages: ComicPage[], canExtract: boolean) {
+  selectedPageIndex = -1;
+  replacePages(nextPages);
+  showViewer(canExtract);
+  renderPageList();
+
+  if (pages.length > 0) {
+    selectPage(0);
+  } else {
+    resetPageSelection();
+  }
+}
+
+async function waitForUiTick() {
+  await new Promise((resolve) => setTimeout(resolve, 10));
+}
+
+async function fetchBridgeBlob(filePath: string): Promise<Blob> {
+  const response = await fetch(createBridgeUrl("/file", { path: filePath }));
+  if (!response.ok) {
+    throw new Error(response.statusText || "File fetch failed.");
+  }
+  return response.blob();
+}
+
+async function fetchBridgeFile(filePath: string, fileName: string, type = "application/octet-stream") {
+  const blob = await fetchBridgeBlob(filePath);
+  return new File([blob], fileName, { type });
+}
+
+async function writeBridgeFile(filePath: string, content: ArrayBuffer) {
+  const response = await fetch(createBridgeUrl("/file", { path: filePath }), {
+    method: "POST",
+    body: content,
+  });
+
+  if (!response.ok) {
+    let message = response.statusText;
+    try {
+      const errorData = await response.json();
+      message = errorData.error || message;
+    } catch {
+      // Ignore JSON parse failures and keep the response status text.
+    }
+    throw new Error(message || "File save failed.");
+  }
+}
+
+async function loadPagesFromBridgeFiles(files: FileEntry[], startingOrder = 0): Promise<ComicPage[]> {
+  return Promise.all(files.map(async (file, index) => {
+    const blob = await fetchBridgeBlob(file.path);
+    return createPage(file.name, blob, startingOrder + index);
+  }));
+}
 
 async function initRPC() {
   try {
     const { Electroview } = await import("electrobun/view");
-
-    type RPCType = {
-      bun: {
-        requests: {
-          getBinaryConfig: {
-            params: Record<string, never>;
-            response: { port: number; token: string };
-          };
-          showSaveDialog: {
-            params: { defaultPath: string };
-            response: { canceled: boolean; filePath?: string };
-          };
-          showOpenDialog: {
-            params: { canChooseDirectory?: boolean; allowMultiple?: boolean; allowedFileTypes?: string };
-            response: { canceled: boolean; filePaths: string[] };
-          };
-          getRecentFiles: {
-            params: Record<string, never>;
-            response: { name: string; path: string }[];
-          };
-          addRecentFile: {
-            params: { name: string; filePath: string };
-            response: { success: boolean };
-          };
-          clearRecentFiles: {
-            params: Record<string, never>;
-            response: { success: boolean };
-          };
-          extractCBR: {
-            params: { filePath: string };
-            response: { success: boolean; error?: string; files: { name: string; path: string }[] };
-          };
-          readFolder: {
-            params: { folderPath: string };
-            response: { success: boolean; error?: string; files: { name: string; path: string }[] };
-          };
-          extractArchiveToFolder: {
-            params: { sourcePath: string; destinationPath: string; type: 'cbz' | 'cbr' };
-            response: { success: boolean; error?: string };
-          };
-        };
-        messages: {};
-        push: {};
-      };
-      webview: {
-        requests: {};
-        messages: {};
-        push: {};
-      };
-    };
 
     const electroview = new Electroview({
       rpc: Electroview.defineRPC<RPCType>({
@@ -118,18 +337,16 @@ async function loadRecentFiles() {
   if (!rpc) return;
   try {
     const recentFiles = await rpc.request.getRecentFiles();
-    const container = document.getElementById("recentFilesContainer") as HTMLDivElement;
-    const list = document.getElementById("recentFilesList") as HTMLDivElement;
 
     if (!recentFiles || recentFiles.length === 0) {
-      container.classList.add("hidden");
+      recentFilesContainer.classList.add("hidden");
       return;
     }
 
-    container.classList.remove("hidden");
-    list.innerHTML = "";
+    recentFilesContainer.classList.remove("hidden");
+    recentFilesList.innerHTML = "";
 
-    recentFiles.forEach((file: { name: string, path: string }) => {
+    recentFiles.forEach((file: FileEntry) => {
       const item = document.createElement("div");
       item.className = "recent-file-item";
       item.innerHTML = `
@@ -147,7 +364,7 @@ async function loadRecentFiles() {
       `;
 
       item.addEventListener("click", () => openKnownFile(file.path, file.name));
-      list.appendChild(item);
+      recentFilesList.appendChild(item);
     });
   } catch (error) {
     console.error("Failed to load recent files:", error);
@@ -155,54 +372,35 @@ async function loadRecentFiles() {
 }
 
 async function openKnownFile(filePath: string, fileName: string) {
-  isFolderMode = false;
-  saveBtn.innerHTML = `
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-      stroke-linecap="round" stroke-linejoin="round">
-      <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
-      <polyline points="17 21 17 13 7 13 7 21" />
-      <polyline points="7 3 7 8 15 8" />
-    </svg>
-  `;
-
-  document.getElementById("recentFilesContainer")?.classList.add("hidden");
+  setSaveButtonMode("save");
+  recentFilesContainer.classList.add("hidden");
   dropZone.classList.add("hidden");
-  loader.classList.remove("hidden");
-  await new Promise(resolve => setTimeout(resolve, 10));
+  setLoaderVisible(true);
+  await waitForUiTick();
 
   try {
-    const readUrl = `http://localhost:${binaryConfig!.port}/file?path=${encodeURIComponent(filePath)}&token=${binaryConfig!.token}`;
-    const response = await fetch(readUrl);
-
-    if (!response.ok) throw new Error("File not found");
-
-    const blob = await response.blob();
-    const file = new File([blob], fileName, { type: "application/zip" });
+    const file = await fetchBridgeFile(filePath, fileName, "application/zip");
     await openComicFile(file, filePath);
   } catch (error) {
     console.error("Failed to open recent file:", error);
     alert("Could not open file.");
-    loader.classList.add("hidden");
+    setLoaderVisible(false);
   }
 }
 
 initRPC();
 
-const imageExtensions = [".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"];
-
 function isImageFile(filename: string): boolean {
-  const ext = filename.toLowerCase().slice(filename.lastIndexOf("."));
-  return imageExtensions.includes(ext);
+  return imageExtensions.includes(getFileExtension(filename));
 }
 
+async function openComicFile(file: OpenableFile, filePath?: string) {
+  const requestId = startOpenRequest();
 
-async function openComicFile(file: any, filePath?: string) {
   try {
-    selectedPageIndex = -1;
-    updateCopyButtonState();
     currentFileName = file.name;
     currentFilePath = filePath || file.path || null;
-    console.log(`[Frontend] openComicFile: ${currentFileName}, path: ${currentFilePath}`);
+    setSaveButtonMode("save");
 
     if (currentFilePath && rpc) {
       rpc.request.addRecentFile({ name: currentFileName, filePath: currentFilePath }).then(() => {
@@ -211,124 +409,65 @@ async function openComicFile(file: any, filePath?: string) {
     }
 
     const arrayBuffer = await file.arrayBuffer();
-    const ext = file.name.toLowerCase().slice(file.name.lastIndexOf("."));
+    const ext = getFileExtension(file.name);
 
     if (ext === ".cbz") {
-      const loadRest = await loadCbz(arrayBuffer);
-
-      currentFile = arrayBuffer;
-      document.getElementById("landingContainer")?.classList.add("hidden");
-      document.getElementById("progressBarContainer")?.classList.remove("hidden");
-      previewContainer.classList.remove("hidden");
-      previewContainer.classList.add("fit-height"); // Default viewing mode
-
-      const sidebar = document.querySelector(".sidebar");
-      const viewer = document.querySelector(".viewer");
-      if (viewer) viewer.classList.add("has-content");
-      if (sidebar) sidebar.classList.remove("hidden");
-
-      const toolbar = document.querySelector(".toolbar");
-      if (toolbar) toolbar.classList.remove("hidden");
-
-      saveBtn.disabled = false;
-      extractBtn.disabled = false;
-      renderPageList();
-
-      if (pages.length > 0) {
-        selectPage(0);
-      }
-      loader.classList.add("hidden");
-
-      // Load remaining pages in the background after UI is shown
-      loadRest();
-      return;
-    } else if (ext === ".cbr") {
-      if (!currentFilePath) {
-        console.error(`[Frontend] currentFilePath is missing for CBR. Drop might not provide path.`);
-        alert("Cannot open CBR file from drop natively in this environment. Please click 'Open' and select it instead.");
-        loader.classList.add("hidden");
-        return;
+      const { initialPages, loadRemainingPages } = await loadCbz(arrayBuffer);
+      if (!initialPages.length) {
+        throw new Error("No images found in the archive.");
       }
 
-      console.log(`[Frontend] Extraction starting for: ${currentFilePath}`);
-      const response = await rpc.request.extractCBR({ filePath: currentFilePath });
-      console.log(`[Frontend] Extraction response success: ${response.success}`);
+      if (!isActiveOpenRequest(requestId)) return;
 
-      if (!response.success) {
-        console.error(`[Frontend] Extraction error:`, response.error);
-        alert("Error extracting CBR: " + response.error);
-        loader.classList.add("hidden");
-        return;
-      }
+      applyOpenedPages(initialPages, true);
+      setLoaderVisible(false);
 
-      pages = [];
-      const extractedFiles = response.files;
-      console.log(`[Frontend] Received ${extractedFiles.length} file paths from backend`);
-
-      if (extractedFiles.length > 0) {
-        // Fetch all images in parallel for better performance
-        const fetchPromises = extractedFiles.map(async (file: { name: string, path: string }, index: number) => {
-          try {
-            const readUrl = `http://localhost:${binaryConfig!.port}/file?path=${encodeURIComponent(file.path)}&token=${binaryConfig!.token}`;
-            const res = await fetch(readUrl);
-            if (!res.ok) throw new Error(`Fetch failed: ${res.statusText}`);
-            const blob = await res.blob();
-            if (index === 0) console.log(`[Frontend] Successfully fetched first image: ${file.name}`);
-            return {
-              filename: file.name,
-              url: URL.createObjectURL(blob),
-              blob,
-              disabled: false,
-              originalOrder: index
-            };
-          } catch (err) {
-            console.error(`[Frontend] Failed to fetch image ${file.name}:`, err);
-            throw err;
-          }
-        });
-
-        pages = await Promise.all(fetchPromises);
-        console.log(`[Frontend] All ${pages.length} images fetched and converted to URLs`);
-
-        currentFile = arrayBuffer;
-        document.getElementById("landingContainer")?.classList.add("hidden");
-        document.getElementById("progressBarContainer")?.classList.remove("hidden");
-        previewContainer.classList.remove("hidden");
-        previewContainer.classList.add("fit-height");
-
-        const sidebar = document.querySelector(".sidebar");
-        const viewer = document.querySelector(".viewer");
-        if (viewer) viewer.classList.add("has-content");
-        if (sidebar) sidebar.classList.remove("hidden");
-
-        const toolbar = document.querySelector(".toolbar");
-        if (toolbar) toolbar.classList.remove("hidden");
-
-        saveBtn.disabled = false;
-        extractBtn.disabled = false;
-        renderPageList();
-
-        if (pages.length > 0) {
-          selectPage(0);
+      void loadRemainingPages().then((remainingPages) => {
+        if (!isActiveOpenRequest(requestId) || remainingPages.length === 0) {
+          return;
         }
-      }
 
-      loader.classList.add("hidden");
-      return;
-    } else {
-      alert("Please select a .cbz or .cbr file");
-      loader.classList.add("hidden");
+        pages = [...pages, ...remainingPages];
+        renderPageList();
+        if (selectedPageIndex !== -1) {
+          selectPage(selectedPageIndex, true);
+        }
+      }).catch((error) => {
+        console.error("Error loading remaining archive pages:", error);
+      });
       return;
     }
 
+    if (ext === ".cbr") {
+      if (!currentFilePath || !rpc) {
+        throw new Error("Cannot open this CBR from drag and drop. Use the Open button instead.");
+      }
+
+      const response = await rpc.request.extractCBR({ filePath: currentFilePath });
+      if (!response.success) {
+        throw new Error(response.error || "CBR extraction failed.");
+      }
+
+      const nextPages = await loadPagesFromBridgeFiles(response.files);
+      if (!isActiveOpenRequest(requestId)) return;
+
+      applyOpenedPages(nextPages, true);
+      setLoaderVisible(false);
+      return;
+    }
+
+    throw new Error("Please select a .cbz or .cbr file");
   } catch (error) {
     console.error("Error opening file:", error);
     alert("Error opening file: " + (error as Error).message);
-    loader.classList.add("hidden");
+    setLoaderVisible(false);
   }
 }
 
-async function loadCbz(arrayBuffer: ArrayBuffer): Promise<() => Promise<void>> {
+async function loadCbz(arrayBuffer: ArrayBuffer): Promise<{
+  initialPages: ComicPage[];
+  loadRemainingPages: () => Promise<ComicPage[]>;
+}> {
   const zip = await JSZip.loadAsync(arrayBuffer);
   const imageFiles: string[] = [];
 
@@ -338,41 +477,31 @@ async function loadCbz(arrayBuffer: ArrayBuffer): Promise<() => Promise<void>> {
     }
   }
 
-  // No default sorting to respect archive entry order
+  if (imageFiles.length === 0) {
+    return {
+      initialPages: [],
+      loadRemainingPages: async () => [],
+    };
+  }
 
-  pages = [];
-
-  if (imageFiles.length === 0) return async () => { };
-
-  // Load first page immediately so UI can show instantly
   const firstBlob = await zip.files[imageFiles[0]].async("blob");
-  pages.push({
-    filename: imageFiles[0],
-    url: URL.createObjectURL(firstBlob),
-    blob: firstBlob,
-    disabled: false,
-    originalOrder: 0
-  });
+  const initialPages = [createPage(imageFiles[0], firstBlob, 0)];
 
-  // Return a function to load the remaining pages in the background
-  return async () => {
-    if (imageFiles.length <= 1) return;
-    const restBlobs = await Promise.all(
-      imageFiles.slice(1).map((filename) => zip.files[filename].async("blob"))
-    );
-    imageFiles.slice(1).forEach((filename, i) => {
-      pages.push({
-        filename,
-        url: URL.createObjectURL(restBlobs[i]),
-        blob: restBlobs[i],
-        disabled: false,
-        originalOrder: i + 1
-      });
-    });
-    renderPageList();
-    if (selectedPageIndex !== -1) {
-      selectPage(selectedPageIndex, true);
-    }
+  return {
+    initialPages,
+    loadRemainingPages: async () => {
+      if (imageFiles.length <= 1) {
+        return [];
+      }
+
+      const restBlobs = await Promise.all(
+        imageFiles.slice(1).map((filename) => zip.files[filename].async("blob"))
+      );
+
+      return imageFiles.slice(1).map((filename, index) =>
+        createPage(filename, restBlobs[index], index + 1)
+      );
+    },
   };
 }
 
@@ -383,15 +512,13 @@ function handleDragScroll() {
   }
 
   const rect = pageList.getBoundingClientRect();
-  const threshold = 60; // distance from top/bottom to start scrolling
-  const maxSpeed = 15;
 
-  if (lastDragClientY < rect.top + threshold) {
-    const intensity = Math.min(1, (rect.top + threshold - lastDragClientY) / threshold);
-    pageList.scrollTop -= intensity * maxSpeed;
-  } else if (lastDragClientY > rect.bottom - threshold) {
-    const intensity = Math.min(1, (lastDragClientY - (rect.bottom - threshold)) / threshold);
-    pageList.scrollTop += intensity * maxSpeed;
+  if (lastDragClientY < rect.top + DRAG_SCROLL_THRESHOLD) {
+    const intensity = Math.min(1, (rect.top + DRAG_SCROLL_THRESHOLD - lastDragClientY) / DRAG_SCROLL_THRESHOLD);
+    pageList.scrollTop -= intensity * DRAG_SCROLL_MAX_SPEED;
+  } else if (lastDragClientY > rect.bottom - DRAG_SCROLL_THRESHOLD) {
+    const intensity = Math.min(1, (lastDragClientY - (rect.bottom - DRAG_SCROLL_THRESHOLD)) / DRAG_SCROLL_THRESHOLD);
+    pageList.scrollTop += intensity * DRAG_SCROLL_MAX_SPEED;
   }
 
   dragScrollRequest = requestAnimationFrame(handleDragScroll);
@@ -524,12 +651,15 @@ function renderPageList() {
 }
 
 function updateProgressBar() {
-  if (pages.length === 0) return;
-  const progress = ((selectedPageIndex + 1) / pages.length) * 100;
-  const progressBar = document.getElementById("progressBar");
-  if (progressBar) {
-    progressBar.style.width = `${progress}%`;
+  if (!progressBar) return;
+
+  if (pages.length === 0 || selectedPageIndex < 0) {
+    progressBar.style.width = "0%";
+    return;
   }
+
+  const progress = ((selectedPageIndex + 1) / pages.length) * 100;
+  progressBar.style.width = `${progress}%`;
 }
 
 function selectPage(index: number, skipScrollBehavior = false) {
@@ -546,15 +676,12 @@ function selectPage(index: number, skipScrollBehavior = false) {
   if (pages[index]) currentImage.src = pages[index].url;
   if (pages[index + 1]) nextImage.src = pages[index + 1].url;
 
-  const viewer = document.querySelector(".viewer");
-  const isZoomed = false; // Zoom logic removed, handled continuously by CSS layout
-
-  if (viewer && !skipScrollBehavior) {
+  if (viewerNode && !skipScrollBehavior) {
     // When manually selecting a page, scroll to the top of the current image
     isScrollingProgrammatically = true;
     requestAnimationFrame(() => {
-      viewer.scrollTo({ top: currentImage.offsetTop, behavior: "instant" });
-      setTimeout(() => { isScrollingProgrammatically = false; }, 50);
+      viewerNode.scrollTo({ top: currentImage.offsetTop, behavior: "instant" });
+      setTimeout(() => { isScrollingProgrammatically = false; }, SCROLL_FLAG_RESET_DELAY_MS);
     });
   }
 
@@ -598,7 +725,7 @@ function setCopyButtonFeedback(type: "success" | "error", label: string, title: 
   copyFeedbackTimeout = window.setTimeout(() => {
     copyFeedbackTimeout = null;
     clearCopyButtonFeedback();
-  }, 1600);
+  }, COPY_FEEDBACK_DURATION_MS);
 }
 
 function loadImageForClipboard(src: string): Promise<HTMLImageElement> {
@@ -654,7 +781,7 @@ async function copyImageViaBinaryBridge(blob: Blob) {
     throw new Error("Binary bridge is not available.");
   }
 
-  const response = await fetch(`http://localhost:${binaryConfig.port}/clipboard-image?token=${binaryConfig.token}`, {
+  const response = await fetch(createBridgeUrl("/clipboard-image"), {
     method: "POST",
     headers: {
       "Content-Type": blob.type,
@@ -749,7 +876,7 @@ function stopAutoScroll() {
     cancelAnimationFrame(autoScrollInterval);
     autoScrollInterval = null;
     autoScrollBtn.classList.remove("active");
-    document.querySelector(".auto-scroll-group")?.classList.remove("active");
+    autoScrollGroup?.classList.remove("active");
   }
 }
 
@@ -757,22 +884,20 @@ function startAutoScroll() {
   if (!pages.length) return;
 
   // Force fit to width
-  const fitWidthBtn = document.getElementById("fitWidthBtn") as HTMLButtonElement;
   if (!fitWidthBtn.classList.contains("active")) {
     fitWidthBtn.click();
   }
 
   autoScrollBtn.classList.add("active");
-  document.querySelector(".auto-scroll-group")?.classList.add("active");
+  autoScrollGroup?.classList.add("active");
 
   function scrollStep() {
-    const viewer = document.querySelector(".viewer");
-    if (viewer) {
+    if (viewerNode) {
       // Speed multiplier (min 1 = 0.5px, max 10 = 5px per frame)
       const speedSliderValue = parseInt(autoScrollSpeedInput.value || "2", 10);
       const speed = speedSliderValue * 0.5;
 
-      viewer.scrollBy({ top: speed, behavior: "instant" });
+      viewerNode.scrollBy({ top: speed, behavior: "instant" });
     }
     autoScrollInterval = requestAnimationFrame(scrollStep);
   }
@@ -813,7 +938,7 @@ async function saveComic() {
         defaultSaveName += ".cbz";
       }
     } else {
-      const ext = currentFileName.toLowerCase().slice(currentFileName.lastIndexOf("."));
+      const ext = getFileExtension(currentFileName);
       const baseName = currentFileName.slice(0, currentFileName.lastIndexOf("."));
       if (ext === ".cbr") {
         defaultSaveName = baseName + ".cbz";
@@ -832,12 +957,10 @@ async function saveComic() {
 
     let defaultPath = defaultSaveName;
     if (currentFilePath && !isFolderMode) {
-      const lastSlash = Math.max(currentFilePath.lastIndexOf('\\'), currentFilePath.lastIndexOf('/'));
-      const dir = currentFilePath.slice(0, lastSlash + 1);
-      defaultPath = dir + defaultSaveName;
+      defaultPath = getParentPath(currentFilePath) + defaultSaveName;
     }
 
-    if (!rpc) {
+    if (!rpc || !binaryConfig) {
       alert("RPC not initialized. Using browser download instead.");
       const blob = new Blob([new Uint8Array(arrayBuffer)], { type: "application/zip" });
       const url = URL.createObjectURL(blob);
@@ -857,24 +980,24 @@ async function saveComic() {
       return;
     }
 
-    // High performance save via Binary Bridge
-    const saveUrl = `http://localhost:${binaryConfig!.port}/save?path=${encodeURIComponent(result.filePath)}&token=${binaryConfig!.token}`;
-    const response = await fetch(saveUrl, {
-      method: 'POST',
-      body: arrayBuffer
-    });
-
-    if (response.ok) {
-      alert(`Saved to ${result.filePath}`);
-    } else {
-      const errorData = await response.json();
-      alert("Error saving file: " + (errorData.error || response.statusText));
-    }
+    await writeBridgeFile(result.filePath, arrayBuffer);
+    alert(`Saved to ${result.filePath}`);
   } catch (error) {
     console.error("Error saving file:", error);
     alert("Error saving file: " + (error as Error).message);
   }
 }
+
+fileInput.addEventListener("change", async () => {
+  const file = fileInput.files?.[0] as OpenableFile | undefined;
+  fileInput.value = "";
+  if (!file) return;
+
+  setLoaderVisible(true);
+  landingContainer.classList.add("hidden");
+  await waitForUiTick();
+  await openComicFile(file, file.path);
+});
 
 openBtn.addEventListener("click", async () => {
   if (rpc && binaryConfig) {
@@ -883,37 +1006,27 @@ openBtn.addEventListener("click", async () => {
       if (result.canceled || result.filePaths.length === 0) return;
 
       const filePath = result.filePaths[0];
-      const fileName = filePath.split(/[\\/]/).pop() || "";
+      const fileName = getFileName(filePath);
 
-      isFolderMode = false;
-      saveBtn.innerHTML = `
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-          stroke-linecap="round" stroke-linejoin="round">
-          <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
-          <polyline points="17 21 17 13 7 13 7 21" />
-          <polyline points="7 3 7 8 15 8" />
-        </svg>
-        Save
-      `;
+      setSaveButtonMode("save");
+      setLoaderVisible(true);
+      landingContainer.classList.add("hidden");
+      await waitForUiTick();
 
-      loader.classList.remove("hidden");
-      document.getElementById("landingContainer")?.classList.add("hidden");
-      await new Promise(resolve => setTimeout(resolve, 10));
-
-      const readUrl = `http://localhost:${binaryConfig.port}/file?path=${encodeURIComponent(filePath)}&token=${binaryConfig.token}`;
-      const response = await fetch(readUrl);
-      const blob = await response.blob();
-
-      const file = new File([blob], fileName, { type: "application/zip" });
+      const file = await fetchBridgeFile(filePath, fileName, "application/zip");
       await openComicFile(file, filePath);
     } catch (error) {
       console.error("RPC open failed:", error);
-      loader.classList.add("hidden");
+      setLoaderVisible(false);
       fileInput.click();
     }
   } else {
     fileInput.click();
   }
+});
+
+window.addEventListener("beforeunload", () => {
+  disposePages(pages);
 });
 
 addPageBtn.addEventListener("click", async () => {
@@ -926,33 +1039,23 @@ addPageBtn.addEventListener("click", async () => {
       });
       if (result.canceled || result.filePaths.length === 0) return;
 
-      loader.classList.remove("hidden");
+      setLoaderVisible(true);
+      const nextPages = await loadPagesFromBridgeFiles(
+        result.filePaths.map((filePath) => ({ name: getFileName(filePath), path: filePath })),
+        pages.length
+      );
 
-      for (const filePath of result.filePaths) {
-        const fileName = filePath.split(/[\\/]/).pop() || "";
-        const readUrl = `http://localhost:${binaryConfig.port}/file?path=${encodeURIComponent(filePath)}&token=${binaryConfig.token}`;
-        const response = await fetch(readUrl);
-        const blob = await response.blob();
-        const url = URL.createObjectURL(blob);
-
-        pages.push({
-          filename: fileName,
-          url: url,
-          blob: blob,
-          disabled: false,
-          originalOrder: pages.length
-        });
-      }
+      pages = [...pages, ...nextPages];
 
       renderPageList();
       if (selectedPageIndex === -1 && pages.length > 0) {
         selectPage(0);
       }
 
-      loader.classList.add("hidden");
+      setLoaderVisible(false);
     } catch (error) {
       console.error("Error adding pages:", error);
-      loader.classList.add("hidden");
+      setLoaderVisible(false);
     }
   }
 });
@@ -988,73 +1091,39 @@ resetOrderBtn.addEventListener("click", () => {
 openFolderBtn.addEventListener("click", async () => {
   if (rpc && binaryConfig) {
     try {
-      selectedPageIndex = -1;
-      updateCopyButtonState();
       const result = await rpc.request.showOpenDialog({ canChooseDirectory: true });
       if (result.canceled || result.filePaths.length === 0) return;
+      const requestId = startOpenRequest();
 
       const folderPath = result.filePaths[0];
-      const folderName = folderPath.split(/[\\/]/).filter(Boolean).pop() || "Images";
+      const folderName = getFolderName(folderPath);
 
       currentFileName = folderName;
       currentFilePath = folderPath;
-      isFolderMode = true;
+      setSaveButtonMode("convert");
 
-      saveBtn.innerHTML = `
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-          stroke-linecap="round" stroke-linejoin="round">
-          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l2 3h9a2 2 0 0 1 2 2z" />
-          <polyline points="12 11 12 17M9 14l3 3 3-3" />
-        </svg>
-        Convert to CBZ
-      `;
-
-      loader.classList.remove("hidden");
-      document.getElementById("landingContainer")?.classList.add("hidden");
-      await new Promise(resolve => setTimeout(resolve, 10));
+      setLoaderVisible(true);
+      landingContainer.classList.add("hidden");
+      await waitForUiTick();
 
       const response = await rpc.request.readFolder({ folderPath });
 
       if (response.success) {
-        // Fetch images in parallel
-        const fetchPromises = response.files.map(async (file: any, index: number) => {
-          const readUrl = `http://localhost:${binaryConfig!.port}/file?path=${encodeURIComponent(file.path)}&token=${binaryConfig!.token}`;
-          const res = await fetch(readUrl);
-          const blob = await res.blob();
-          return {
-            filename: file.name,
-            url: URL.createObjectURL(blob),
-            blob,
-            disabled: false,
-            originalOrder: index
-          };
-        });
+        const nextPages = await loadPagesFromBridgeFiles(response.files);
+        if (!isActiveOpenRequest(requestId)) return;
 
-        pages = await Promise.all(fetchPromises);
-
-        if (pages.length > 0) {
-          selectedPageIndex = 0;
-          document.getElementById("landingContainer")?.classList.add("hidden");
-          document.getElementById("progressBarContainer")?.classList.remove("hidden");
-          previewContainer.classList.remove("hidden");
-          previewContainer.classList.add("fit-height");
-          document.querySelector(".sidebar")?.classList.remove("hidden");
-          document.querySelector(".toolbar")?.classList.remove("hidden");
-          document.querySelector(".viewer")?.classList.add("has-content");
-          saveBtn.disabled = false;
-          extractBtn.disabled = true;
-          renderPageList();
-          selectPage(0);
+        if (nextPages.length > 0) {
+          applyOpenedPages(nextPages, false);
         } else {
           alert("No images found in the selected folder.");
         }
       } else {
         alert("Error reading folder: " + response.error);
       }
-      loader.classList.add("hidden");
+      setLoaderVisible(false);
     } catch (error) {
       console.error("Folder open failed:", error);
-      loader.classList.add("hidden");
+      setLoaderVisible(false);
     }
   } else {
     alert("Folder selection is only supported in the desktop app.");
@@ -1070,7 +1139,7 @@ extractBtn.addEventListener("click", async () => {
     return;
   }
 
-  const ext = currentFilePath.toLowerCase().slice(currentFilePath.lastIndexOf("."));
+  const ext = getFileExtension(currentFilePath);
   const type = ext === ".cbr" ? "cbr" : "cbz";
 
   let result;
@@ -1097,7 +1166,7 @@ extractBtn.addEventListener("click", async () => {
     return;
   }
 
-  loader.classList.remove("hidden");
+  setLoaderVisible(true);
   try {
     const response = await rpc.request.extractArchiveToFolder({
       sourcePath: currentFilePath,
@@ -1114,7 +1183,7 @@ extractBtn.addEventListener("click", async () => {
     console.error("Extraction error:", err);
     alert("Error during extraction: " + err);
   } finally {
-    loader.classList.add("hidden");
+    setLoaderVisible(false);
   }
 });
 
@@ -1134,17 +1203,18 @@ dropZone.addEventListener("dragleave", () => {
 
 dropZone.addEventListener("drop", (e) => {
   e.preventDefault();
-  document.getElementById("landingContainer")?.classList.add("hidden");
+  landingContainer.classList.add("hidden");
+  setLoaderVisible(true);
 
-  const file = e.dataTransfer?.files[0];
+  const file = e.dataTransfer?.files[0] as OpenableFile | undefined;
   if (file) {
-    const filePath = (file as any).path;
-    openComicFile(file, filePath);
+    openComicFile(file, file.path);
+  } else {
+    setLoaderVisible(false);
   }
 });
 
 // Handle infinite scrolling up/down logic
-const viewerNode = document.querySelector(".viewer");
 if (viewerNode) {
   viewerNode.addEventListener("scroll", () => {
     if (!previewContainer.classList.contains("fit-width") || isScrollingProgrammatically) return;
@@ -1154,7 +1224,7 @@ if (viewerNode) {
     const currentBottom = currentTop + currentImage.offsetHeight;
 
     // If we scroll deep into the next image
-    if (st > currentBottom - 200 && selectedPageIndex < pages.length - 1) {
+    if (st > currentBottom - PAGE_SWITCH_SCROLL_THRESHOLD && selectedPageIndex < pages.length - 1) {
       isScrollingProgrammatically = true;
       const offset = st - currentBottom;
       selectPage(selectedPageIndex + 1, true);
@@ -1163,11 +1233,11 @@ if (viewerNode) {
       // relative to its new top position.
       requestAnimationFrame(() => {
         viewerNode.scrollTo({ top: currentImage.offsetTop + offset, behavior: "instant" });
-        setTimeout(() => { isScrollingProgrammatically = false; }, 50);
+        setTimeout(() => { isScrollingProgrammatically = false; }, SCROLL_FLAG_RESET_DELAY_MS);
       });
     }
     // If we scroll high into the previous image
-    else if (st < currentTop - 200 && selectedPageIndex > 0) {
+    else if (st < currentTop - PAGE_SWITCH_SCROLL_THRESHOLD && selectedPageIndex > 0) {
       isScrollingProgrammatically = true;
       const offset = currentTop - st;
       selectPage(selectedPageIndex - 1, true);
@@ -1177,7 +1247,7 @@ if (viewerNode) {
       requestAnimationFrame(() => {
         const targetScrollTop = (currentImage.offsetTop + currentImage.offsetHeight) - offset;
         viewerNode.scrollTo({ top: targetScrollTop, behavior: "instant" });
-        setTimeout(() => { isScrollingProgrammatically = false; }, 50);
+        setTimeout(() => { isScrollingProgrammatically = false; }, SCROLL_FLAG_RESET_DELAY_MS);
       });
     }
   });
@@ -1185,7 +1255,6 @@ if (viewerNode) {
 
 document.addEventListener("keydown", (e) => {
   if (!pages.length) return;
-  const viewer = document.querySelector(".viewer");
   const isFitWidth = previewContainer.classList.contains("fit-width");
 
   if (e.key === "ArrowRight") {
@@ -1193,16 +1262,16 @@ document.addEventListener("keydown", (e) => {
   } else if (e.key === "ArrowLeft") {
     if (selectedPageIndex > 0) selectPage(selectedPageIndex - 1);
   } else if (e.key === "ArrowDown") {
-    if (isFitWidth && viewer) {
+    if (isFitWidth && viewerNode) {
       e.preventDefault();
-      viewer.scrollBy({ top: 100, behavior: "smooth" });
+      viewerNode.scrollBy({ top: 100, behavior: "smooth" });
     } else {
       if (selectedPageIndex < pages.length - 1) selectPage(selectedPageIndex + 1);
     }
   } else if (e.key === "ArrowUp") {
-    if (isFitWidth && viewer) {
+    if (isFitWidth && viewerNode) {
       e.preventDefault();
-      viewer.scrollBy({ top: -100, behavior: "smooth" });
+      viewerNode.scrollBy({ top: -100, behavior: "smooth" });
     } else {
       if (selectedPageIndex > 0) selectPage(selectedPageIndex - 1);
     }
@@ -1221,9 +1290,6 @@ document.addEventListener("keydown", (e) => {
   }
 });
 
-const fitWidthBtn = document.getElementById("fitWidthBtn") as HTMLButtonElement;
-const fitHeightBtn = document.getElementById("fitHeightBtn") as HTMLButtonElement;
-
 fitWidthBtn.addEventListener("click", () => {
   previewContainer.classList.remove("fit-height");
   previewContainer.classList.add("fit-width");
@@ -1234,7 +1300,7 @@ fitWidthBtn.addEventListener("click", () => {
     isScrollingProgrammatically = true;
     requestAnimationFrame(() => {
       viewerNode.scrollTo({ top: currentImage.offsetTop, behavior: "instant" });
-      setTimeout(() => { isScrollingProgrammatically = false; }, 50);
+      setTimeout(() => { isScrollingProgrammatically = false; }, SCROLL_FLAG_RESET_DELAY_MS);
     });
   }
 });
@@ -1246,14 +1312,13 @@ fitHeightBtn.addEventListener("click", () => {
   fitHeightBtn.classList.add("active");
 });
 
-document.getElementById("clearRecentBtn")?.addEventListener("click", async () => {
+clearRecentBtn?.addEventListener("click", async () => {
   if (rpc) {
     if (confirm("Are you sure you want to clear your recent files history?")) {
       const res = await rpc.request.clearRecentFiles();
       if (res.success) {
-        document.getElementById("recentFilesContainer")?.classList.add("hidden");
-        const list = document.getElementById("recentFilesList");
-        if (list) list.innerHTML = "";
+        recentFilesContainer.classList.add("hidden");
+        recentFilesList.innerHTML = "";
       }
     }
   }

@@ -6,6 +6,34 @@ import { homedir, tmpdir } from "os";
 
 type RecentFileEntry = { name: string; path: string };
 
+// --- RPC handler param types (mirrors RPCType in renderer) ---
+type AddRecentFileParams = { name: string; filePath: string };
+type ShowSaveDialogParams = { defaultPath: string };
+type ShowOpenDialogParams = { canChooseDirectory?: boolean; allowMultiple?: boolean; allowedFileTypes?: string };
+type ExtractCBRParams = { filePath: string };
+type ExtractArchiveToFolderParams = { sourcePath: string; destinationPath: string; type: "cbz" | "cbr" };
+type ReadFolderParams = { folderPath: string };
+
+// --- Shared RAR extractor factory ---
+async function createRarExtractor(filePath: string) {
+  const { createExtractorFromData } = await import("node-unrar-js");
+  const { unrarWasmB64 } = await import("./unrar-wasm");
+
+  const fileCheck = Bun.file(filePath);
+  if (!(await fileCheck.exists())) {
+    throw new Error(`File does not exist: ${filePath}`);
+  }
+
+  const fileBuffer = await fileCheck.arrayBuffer();
+  const wasmBuffer = Buffer.from(unrarWasmB64, "base64");
+  const wasmBinary = wasmBuffer.buffer.slice(
+    wasmBuffer.byteOffset,
+    wasmBuffer.byteOffset + wasmBuffer.byteLength
+  ) as ArrayBuffer;
+
+  return createExtractorFromData({ data: fileBuffer, wasmBinary });
+}
+
 const securityToken = randomBytes(32).toString('hex');
 let serverPort = 0;
 const recentDir = join(homedir(), ".cbxtool");
@@ -87,12 +115,12 @@ const rpc = defineElectrobunRPC("bun", {
       getRecentFiles: async () => {
         try {
           return await loadRecentFilesFromDisk();
-        } catch (e: any) {
+        } catch (e) {
           console.error("Failed to read recent files:", e);
           return [];
         }
       },
-      addRecentFile: async ({ name, filePath }: any) => {
+      addRecentFile: async ({ name, filePath }: AddRecentFileParams) => {
         if (!filePath) return { success: false };
 
         try {
@@ -124,12 +152,12 @@ const rpc = defineElectrobunRPC("bun", {
         try {
           await unlink(recentFilePath);
           return { success: true };
-        } catch (e: any) {
+        } catch {
           // If it doesn't exist, clearing is effectively successful
           return { success: true };
         }
       },
-      showSaveDialog: async ({ defaultPath }: any) => {
+      showSaveDialog: async ({ defaultPath }: ShowSaveDialogParams) => {
         const filePaths = await Electrobun.Utils.openFileDialog({
           startingFolder: defaultPath.includes("/") ? defaultPath.slice(0, defaultPath.lastIndexOf("/")) : "~/",
           canChooseFiles: false,
@@ -157,7 +185,7 @@ const rpc = defineElectrobunRPC("bun", {
         return { canceled: false, filePath: finalPath };
       },
 
-      showOpenDialog: async ({ canChooseDirectory = false, allowMultiple = false, allowedFileTypes = "" }: any = {}) => {
+      showOpenDialog: async ({ canChooseDirectory = false, allowMultiple = false, allowedFileTypes = "" }: ShowOpenDialogParams = {}) => {
         console.log(`[Backend] showOpenDialog called, canChooseDirectory: ${canChooseDirectory}, allowMultiple: ${allowMultiple}`);
 
         let fileTypes = allowedFileTypes;
@@ -177,88 +205,51 @@ const rpc = defineElectrobunRPC("bun", {
         return { canceled, filePaths: canceled ? [] : filePaths };
       },
 
-      extractCBR: async ({ filePath }: any) => {
+      extractCBR: async ({ filePath }: ExtractCBRParams) => {
         console.log(`[Backend] Extracting CBR: ${filePath}`);
-        const { createExtractorFromData } = await import("node-unrar-js");
-        const { unrarWasmB64 } = await import("./unrar-wasm");
 
         try {
-          const fileCheck = Bun.file(filePath);
-          if (!(await fileCheck.exists())) {
-            throw new Error(`File does not exist: ${filePath}`);
-          }
-
-          const fileBuffer = await fileCheck.arrayBuffer();
-          const wasmBuffer = Buffer.from(unrarWasmB64, 'base64');
-
-          const extractor = await createExtractorFromData({
-            data: fileBuffer,
-            wasmBinary: wasmBuffer.buffer.slice(wasmBuffer.byteOffset, wasmBuffer.byteOffset + wasmBuffer.byteLength) as ArrayBuffer
-          });
-
+          const extractor = await createRarExtractor(filePath);
           const { files } = extractor.extract();
 
           const images: { name: string; path: string }[] = [];
-
-          const tempBaseDir = join(tmpdir(), "cbx-tool-");
-          const tempDir = await mkdtemp(tempBaseDir);
+          const tempDir = await mkdtemp(join(tmpdir(), "cbx-tool-"));
           console.log(`[Backend] Temporary extraction folder: ${tempDir}`);
 
           const imageExtensions = [".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"];
 
-          let fileCount = 0;
           for (const fileItem of files) {
-            fileCount++;
+            if (fileItem.fileHeader.flags.directory) continue;
+
             const filename = fileItem.fileHeader.name;
-
-            if (fileItem.fileHeader.flags.directory) {
-              continue;
-            }
-
             const lastDot = filename.lastIndexOf(".");
             const ext = lastDot !== -1 ? filename.toLowerCase().slice(lastDot) : "";
 
-            if (imageExtensions.includes(ext)) {
-              if (fileItem.extraction) {
-                const pagePath = join(tempDir, basename(filename));
-                await Bun.write(pagePath, fileItem.extraction);
-                images.push({
-                  name: filename,
-                  path: pagePath
-                });
-                if (images.length % 50 === 0) {
-                  console.log(`[Backend] Progress: ${images.length} images extracted...`);
-                }
+            if (imageExtensions.includes(ext) && fileItem.extraction) {
+              const pagePath = join(tempDir, basename(filename));
+              await Bun.write(pagePath, fileItem.extraction);
+              images.push({ name: filename, path: pagePath });
+              if (images.length % 50 === 0) {
+                console.log(`[Backend] Progress: ${images.length} images extracted...`);
               }
             }
           }
 
-
           return { success: true, files: images };
-
         } catch (e) {
           console.error("CBR Extraction Error:", e);
           return { success: false, error: (e as Error).message, files: [] };
         }
       },
 
-      extractArchiveToFolder: async ({ sourcePath, destinationPath, type }: any) => {
+      extractArchiveToFolder: async ({ sourcePath, destinationPath, type }: ExtractArchiveToFolderParams) => {
         console.log(`[Backend] extractArchiveToFolder: ${sourcePath} -> ${destinationPath} (${type})`);
 
         try {
           await mkdir(destinationPath, { recursive: true });
 
-          if (type === 'cbr') {
-            const { createExtractorFromData } = await import("node-unrar-js");
-            const { unrarWasmB64 } = await import("./unrar-wasm");
-            const fileBuffer = await Bun.file(sourcePath).arrayBuffer();
-            const wasmBuffer = Buffer.from(unrarWasmB64, 'base64');
-
-            const extractor = await createExtractorFromData({
-              data: fileBuffer,
-              wasmBinary: wasmBuffer.buffer.slice(wasmBuffer.byteOffset, wasmBuffer.byteOffset + wasmBuffer.byteLength) as ArrayBuffer
-            });
-
+          if (type === "cbr") {
+            const extractor = await createRarExtractor(sourcePath);
             const { files } = extractor.extract();
             for (const fileItem of files) {
               if (fileItem.fileHeader.flags.directory) continue;
@@ -267,12 +258,7 @@ const rpc = defineElectrobunRPC("bun", {
                 await Bun.write(targetFile, fileItem.extraction);
               }
             }
-          } else if (type === 'cbz') {
-            // Use JSZip on backend if possible, or simple Bun file read
-            // Since we already use JSZip on frontend, Let's use it here too for consistency if needed, 
-            // but for backend performance, we might want a native hook or just Bun.file.
-            // Actually, for .cbz (ZIP), we can use the 'unzip' command if available or a library.
-            // For simplicity and to avoid new dependencies, let's use JSZip which is already in package.json.
+          } else if (type === "cbz") {
             const JSZip = (await import("jszip")).default;
             const fileBuffer = await Bun.file(sourcePath).arrayBuffer();
             const zip = await JSZip.loadAsync(fileBuffer);
@@ -292,7 +278,7 @@ const rpc = defineElectrobunRPC("bun", {
         }
       },
 
-      readFolder: async ({ folderPath }: any) => {
+      readFolder: async ({ folderPath }: ReadFolderParams) => {
         try {
           const files = await readdir(folderPath);
           const images: { name: string; path: string; time: number }[] = [];
