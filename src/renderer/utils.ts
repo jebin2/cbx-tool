@@ -23,5 +23,9 @@ export function isImageFile(filename: string): boolean {
 }
 
 export async function waitForUiTick() {
-  await new Promise((resolve) => setTimeout(resolve, 10));
+  await new Promise<void>((resolve) => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => resolve());
+    });
+  });
 }

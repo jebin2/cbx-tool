@@ -3,6 +3,7 @@ import { showMessageModal } from "./modal.ts";
 import { state } from "./state.ts";
 import { createBridgeUrl } from "./bridge.ts";
 import { clearCopyButtonFeedback, setCopyButtonFeedback, updateCopyButtonState } from "./ui.ts";
+import { waitForUiTick } from "./utils.ts";
 
 function loadImageForClipboard(src: string): Promise<HTMLImageElement> {
   if (currentImage.src === src && currentImage.complete && currentImage.naturalWidth > 0) {
@@ -94,6 +95,7 @@ export async function copyCurrentPageToClipboard() {
   copyBtnLabel.textContent = "Copying...";
 
   try {
+    await waitForUiTick();
     const blob = await createClipboardImageBlob(selectedPage.url);
     if (state.binaryConfig) {
       await copyImageViaBinaryBridge(blob);
