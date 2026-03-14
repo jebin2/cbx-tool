@@ -33,6 +33,8 @@ import {
 import { state } from "./state.ts";
 import { replacePages } from "./pages.ts";
 
+// ─── Loader / viewer state ────────────────────────────────────────────────────
+
 export function setLoaderVisible(isVisible: boolean) {
   loader.classList.toggle("hidden", !isVisible);
 }
@@ -75,6 +77,8 @@ export function showViewer(canExtract: boolean) {
   saveBtn.disabled = false;
   extractBtn.disabled = !canExtract;
 }
+
+// ─── Progress / copy button ───────────────────────────────────────────────────
 
 export function updateProgressBar() {
   if (!progressBar) return;
@@ -126,6 +130,29 @@ export function resetPageSelection() {
   updateProgressBar();
 }
 
+// ─── Page list: item factory ──────────────────────────────────────────────────
+
+function createPageItem(page: ComicPage, index: number): HTMLElement {
+  const item = document.createElement("div");
+  item.className =
+    "page-item" +
+    (index === state.selectedPageIndex ? " selected" : "") +
+    (page.disabled ? " page-disabled" : "");
+  item.draggable = true;
+  item.dataset.pageIndex = index.toString();
+  item.innerHTML = `
+    <img src="${page.url}" alt="Page ${index + 1}" loading="lazy">
+    <div class="page-info">
+      <div class="page-num">${index + 1}</div>
+      <div class="page-name" title="${page.filename}">${page.filename}</div>
+    </div>
+    <button class="remove-btn" title="${page.disabled ? "Restore" : "Remove"}">${page.disabled ? "+" : "×"}</button>
+  `;
+  return item;
+}
+
+// ─── Page list: drag-scroll helper ───────────────────────────────────────────
+
 function handleDragScroll() {
   if (state.draggedItemIndex === null) {
     state.dragScrollRequest = null;
@@ -151,125 +178,195 @@ function handleDragScroll() {
   state.dragScrollRequest = requestAnimationFrame(handleDragScroll);
 }
 
-export function renderPageList() {
-  pageList.innerHTML = "";
+// ─── Page list: targeted DOM mutations ───────────────────────────────────────
+
+function updatePageCount() {
   const activeCount = state.pages.filter((p) => !p.disabled).length;
   pageCount.textContent = `${activeCount}/${state.pages.length} pages`;
+}
 
-  state.pages.forEach((page, index) => {
-    const item = document.createElement("div");
-    item.className =
-      "page-item" +
-      (index === state.selectedPageIndex ? " selected" : "") +
-      (page.disabled ? " page-disabled" : "");
-    item.draggable = true;
-    item.innerHTML = `
-      <img src="${page.url}" alt="Page ${index + 1}" loading="lazy">
-      <div class="page-info">
-        <div class="page-num">${index + 1}</div>
-        <div class="page-name" title="${page.filename}">${page.filename}</div>
-      </div>
-      <button class="remove-btn" data-index="${index}" title="${page.disabled ? "Restore" : "Remove"}">${page.disabled ? "+" : "×"}</button>
-    `;
+/**
+ * Move one DOM node to its new position and re-index only the affected range.
+ * O(range) attribute updates instead of O(n) full rebuild.
+ */
+function reorderPageItem(fromIndex: number, toIndex: number) {
+  const items = Array.from(pageList.children) as HTMLElement[];
+  const movingItem = items[fromIndex];
 
-    item.addEventListener("dragstart", (e) => {
-      state.draggedItemIndex = index;
-      item.classList.add("dragging");
-      if (e.dataTransfer) {
-        e.dataTransfer.effectAllowed = "move";
-        e.dataTransfer.setData("text/plain", index.toString());
-      }
+  pageList.removeChild(movingItem);
 
-      if (!state.dragScrollRequest) {
-        state.dragScrollRequest = requestAnimationFrame(handleDragScroll);
-      }
-    });
+  const remaining = Array.from(pageList.children) as HTMLElement[];
+  if (toIndex >= remaining.length) {
+    pageList.appendChild(movingItem);
+  } else {
+    pageList.insertBefore(movingItem, remaining[toIndex]);
+  }
 
-    item.addEventListener("dragover", (e) => {
-      e.preventDefault();
-      if (state.draggedItemIndex === null || state.draggedItemIndex === index) return;
-
-      const rect = item.getBoundingClientRect();
-      const midpoint = rect.top + rect.height / 2;
-
-      item.classList.remove("drop-target-above", "drop-target-below");
-      if (e.clientY < midpoint) {
-        item.classList.add("drop-target-above");
-      } else {
-        item.classList.add("drop-target-below");
-      }
-
-      state.lastDragClientY = e.clientY;
-    });
-
-    item.addEventListener("dragleave", () => {
-      item.classList.remove("drop-target-above", "drop-target-below");
-    });
-
-    item.addEventListener("drop", (e) => {
-      e.preventDefault();
-      item.classList.remove("drop-target-above", "drop-target-below");
-
-      if (state.draggedItemIndex === null || state.draggedItemIndex === index) return;
-
-      const rect = item.getBoundingClientRect();
-      const midpoint = rect.top + rect.height / 2;
-      let dropIndex = index;
-
-      if (e.clientY >= midpoint) {
-        dropIndex++;
-      }
-
-      if (state.draggedItemIndex < dropIndex) {
-        dropIndex--;
-      }
-
-      if (state.draggedItemIndex !== dropIndex) {
-        const [movedPage] = state.pages.splice(state.draggedItemIndex, 1);
-        state.pages.splice(dropIndex, 0, movedPage);
-
-        if (state.selectedPageIndex === state.draggedItemIndex) {
-          state.selectedPageIndex = dropIndex;
-        } else if (state.draggedItemIndex < state.selectedPageIndex && dropIndex >= state.selectedPageIndex) {
-          state.selectedPageIndex--;
-        } else if (state.draggedItemIndex > state.selectedPageIndex && dropIndex <= state.selectedPageIndex) {
-          state.selectedPageIndex++;
-        }
-
-        renderPageList();
-        selectPage(state.selectedPageIndex, true);
-      }
-    });
-
-    item.addEventListener("dragend", () => {
-      item.classList.remove("dragging");
-      state.draggedItemIndex = null;
-      if (state.dragScrollRequest) {
-        cancelAnimationFrame(state.dragScrollRequest);
-        state.dragScrollRequest = null;
-      }
-      document.querySelectorAll(".page-item").forEach((i) =>
-        i.classList.remove("drop-target-above", "drop-target-below")
-      );
-    });
-
-    item.addEventListener("click", (e) => {
-      if (!(e.target as HTMLElement).classList.contains("remove-btn")) {
-        selectPage(index);
-      }
-    });
-
-    item.querySelector(".remove-btn")?.addEventListener("click", (e) => {
-      e.stopPropagation();
-      togglePage(index);
-    });
-
-    pageList.appendChild(item);
+  // Re-index and renumber only the items whose position shifted
+  const lo = Math.min(fromIndex, toIndex);
+  const hi = Math.max(fromIndex, toIndex);
+  Array.from(pageList.children).forEach((child, i) => {
+    if (i < lo || i > hi) return;
+    const el = child as HTMLElement;
+    el.dataset.pageIndex = i.toString();
+    const numEl = el.querySelector(".page-num");
+    if (numEl) numEl.textContent = (i + 1).toString();
+    el.classList.toggle("selected", i === state.selectedPageIndex);
   });
 
   updateProgressBar();
   updateCopyButtonState();
 }
+
+/**
+ * Update a single item's disabled/enabled state without touching the rest.
+ * O(1) DOM update instead of O(n) full rebuild.
+ */
+function patchPageItem(index: number) {
+  const item = pageList.querySelector(`[data-page-index="${index}"]`) as HTMLElement | null;
+  if (!item) return;
+
+  const page = state.pages[index];
+  item.classList.toggle("page-disabled", page.disabled);
+  const btn = item.querySelector(".remove-btn") as HTMLButtonElement | null;
+  if (btn) {
+    btn.title = page.disabled ? "Restore" : "Remove";
+    btn.textContent = page.disabled ? "+" : "×";
+  }
+}
+
+/**
+ * Append only the newly added pages without rebuilding the existing list.
+ */
+export function appendPageItems(newPages: ComicPage[], startingIndex: number) {
+  newPages.forEach((page, i) => {
+    pageList.appendChild(createPageItem(page, startingIndex + i));
+  });
+  updatePageCount();
+  updateCopyButtonState();
+}
+
+// ─── Page list: full render + event delegation ────────────────────────────────
+
+/**
+ * Full rebuild. Use for initial load and reset-order. For incremental changes
+ * use reorderPageItem, patchPageItem, or appendPageItems.
+ */
+export function renderPageList() {
+  pageList.innerHTML = "";
+  state.pages.forEach((page, index) => {
+    pageList.appendChild(createPageItem(page, index));
+  });
+  updatePageCount();
+  updateProgressBar();
+  updateCopyButtonState();
+}
+
+/**
+ * Wire all page-list interactions via event delegation.
+ * Called once at startup — no per-item listeners needed.
+ */
+export function setupPageListEvents() {
+  pageList.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    state.lastDragClientY = e.clientY;
+
+    const item = (e.target as HTMLElement).closest(".page-item") as HTMLElement | null;
+    if (!item) return;
+    const index = parseInt(item.dataset.pageIndex!);
+    if (state.draggedItemIndex === null || state.draggedItemIndex === index) return;
+
+    const rect = item.getBoundingClientRect();
+    item.classList.remove("drop-target-above", "drop-target-below");
+    if (e.clientY < rect.top + rect.height / 2) {
+      item.classList.add("drop-target-above");
+    } else {
+      item.classList.add("drop-target-below");
+    }
+  });
+
+  pageList.addEventListener("dragstart", (e) => {
+    const item = (e.target as HTMLElement).closest(".page-item") as HTMLElement | null;
+    if (!item) return;
+    state.draggedItemIndex = parseInt(item.dataset.pageIndex!);
+    item.classList.add("dragging");
+    if (e.dataTransfer) {
+      e.dataTransfer.effectAllowed = "move";
+    }
+    if (!state.dragScrollRequest) {
+      state.dragScrollRequest = requestAnimationFrame(handleDragScroll);
+    }
+  });
+
+  pageList.addEventListener("dragleave", (e) => {
+    const item = (e.target as HTMLElement).closest(".page-item") as HTMLElement | null;
+    if (item) item.classList.remove("drop-target-above", "drop-target-below");
+  });
+
+  pageList.addEventListener("drop", (e) => {
+    e.preventDefault();
+    const item = (e.target as HTMLElement).closest(".page-item") as HTMLElement | null;
+    if (!item) return;
+    item.classList.remove("drop-target-above", "drop-target-below");
+
+    if (state.draggedItemIndex === null) return;
+    const index = parseInt(item.dataset.pageIndex!);
+    if (state.draggedItemIndex === index) return;
+
+    const rect = item.getBoundingClientRect();
+    let dropIndex = index;
+    if (e.clientY >= rect.top + rect.height / 2) dropIndex++;
+    if (state.draggedItemIndex < dropIndex) dropIndex--;
+
+    if (state.draggedItemIndex !== dropIndex) {
+      const from = state.draggedItemIndex;
+      const to = dropIndex;
+
+      const [movedPage] = state.pages.splice(from, 1);
+      state.pages.splice(to, 0, movedPage);
+
+      if (state.selectedPageIndex === from) {
+        state.selectedPageIndex = to;
+      } else if (from < state.selectedPageIndex && to >= state.selectedPageIndex) {
+        state.selectedPageIndex--;
+      } else if (from > state.selectedPageIndex && to <= state.selectedPageIndex) {
+        state.selectedPageIndex++;
+      }
+
+      reorderPageItem(from, to);
+      selectPage(state.selectedPageIndex, true);
+    }
+  });
+
+  pageList.addEventListener("dragend", (e) => {
+    const item = (e.target as HTMLElement).closest(".page-item") as HTMLElement | null;
+    if (item) item.classList.remove("dragging");
+    state.draggedItemIndex = null;
+    if (state.dragScrollRequest) {
+      cancelAnimationFrame(state.dragScrollRequest);
+      state.dragScrollRequest = null;
+    }
+    pageList.querySelectorAll(".page-item").forEach((i) =>
+      i.classList.remove("drop-target-above", "drop-target-below")
+    );
+  });
+
+  pageList.addEventListener("click", (e) => {
+    const target = e.target as HTMLElement;
+    const item = target.closest(".page-item") as HTMLElement | null;
+    if (!item) return;
+    const index = parseInt(item.dataset.pageIndex!);
+
+    if (target.classList.contains("remove-btn")) {
+      e.stopPropagation();
+      togglePage(index);
+    } else {
+      selectPage(index);
+    }
+  });
+}
+
+// ─── Page selection ───────────────────────────────────────────────────────────
 
 export function selectPage(index: number, skipScrollBehavior = false) {
   if (index < 0 || index >= state.pages.length) return;
@@ -305,9 +402,12 @@ export function selectPage(index: number, skipScrollBehavior = false) {
 export function togglePage(index: number) {
   if (index < 0 || index >= state.pages.length) return;
   state.pages[index].disabled = !state.pages[index].disabled;
-  renderPageList();
-  selectPage(state.selectedPageIndex);
+  patchPageItem(index);
+  updatePageCount();
+  updateProgressBar();
 }
+
+// ─── Full page replacement ────────────────────────────────────────────────────
 
 export function applyOpenedPages(nextPages: ComicPage[], canExtract: boolean) {
   state.selectedPageIndex = -1;
@@ -321,4 +421,3 @@ export function applyOpenedPages(nextPages: ComicPage[], canExtract: boolean) {
     resetPageSelection();
   }
 }
-

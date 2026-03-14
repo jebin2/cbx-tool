@@ -11,7 +11,7 @@ import { fetchBridgeFile } from "./bridge.ts";
 import { loadCbz, loadPagesFromBridgeFiles } from "./pages.ts";
 import {
   applyOpenedPages,
-  renderPageList,
+  appendPageItems,
   selectPage,
   setLoaderVisible,
   setSaveButtonMode,
@@ -61,8 +61,9 @@ export async function openComicFile(file: OpenableFile, filePath?: string) {
           return;
         }
 
+        const startingIndex = state.pages.length;
         state.pages = [...state.pages, ...remainingPages];
-        renderPageList();
+        appendPageItems(remainingPages, startingIndex);
         if (state.selectedPageIndex !== -1) {
           selectPage(state.selectedPageIndex, true);
         }

@@ -14,7 +14,6 @@ import {
   landingContainer,
   openBtn,
   openFolderBtn,
-  pageList,
   previewContainer,
   recentFilesContainer,
   recentFilesList,
@@ -28,10 +27,12 @@ import { fetchBridgeFile, initRPC } from "./bridge.ts";
 import { disposePages, loadPagesFromBridgeFiles } from "./pages.ts";
 import {
   applyOpenedPages,
+  appendPageItems,
   renderPageList,
   selectPage,
   setLoaderVisible,
   setSaveButtonMode,
+  setupPageListEvents,
 } from "./ui.ts";
 import { openComicFile, startOpenRequest, isActiveOpenRequest, loadRecentFiles } from "./loader.ts";
 import { copyCurrentPageToClipboard } from "./clipboard.ts";
@@ -43,19 +44,15 @@ import {
   setupKeyboardHandler,
 } from "./nav.ts";
 
-// --- Initialization ---
+// ─── Initialization ───────────────────────────────────────────────────────────
 
 initRPC(() => loadRecentFiles());
 setupRenameModalListeners();
 setupScrollHandler();
 setupKeyboardHandler();
+setupPageListEvents();
 
-// Keep drag position updated at the container level
-pageList.addEventListener("dragover", (e) => {
-  state.lastDragClientY = e.clientY;
-});
-
-// --- Toolbar ---
+// ─── Toolbar ──────────────────────────────────────────────────────────────────
 
 fileInput.addEventListener("change", async () => {
   const file = fileInput.files?.[0] as OpenableFile | undefined;
@@ -146,12 +143,17 @@ extractBtn.addEventListener("click", async () => {
     return;
   }
 
+  if (!state.rpc) {
+    alert("RPC not available.");
+    return;
+  }
+
   const ext = getFileExtension(state.currentFilePath);
   const type = ext === ".cbr" ? "cbr" : "cbz";
 
   let result;
   try {
-    result = await state.rpc!.request.showOpenDialog({ canChooseDirectory: true });
+    result = await state.rpc.request.showOpenDialog({ canChooseDirectory: true });
   } catch (rpcErr) {
     console.error("[Frontend] RPC showOpenDialog failed:", rpcErr);
     alert("System error: Could not open folder picker. See console for details.");
@@ -166,7 +168,7 @@ extractBtn.addEventListener("click", async () => {
 
   setLoaderVisible(true);
   try {
-    const response = await state.rpc!.request.extractArchiveToFolder({
+    const response = await state.rpc.request.extractArchiveToFolder({
       sourcePath: state.currentFilePath,
       destinationPath,
       type,
@@ -197,13 +199,14 @@ addPageBtn.addEventListener("click", async () => {
     if (result.canceled || result.filePaths.length === 0) return;
 
     setLoaderVisible(true);
+    const startingIndex = state.pages.length;
     const nextPages = await loadPagesFromBridgeFiles(
       result.filePaths.map((filePath) => ({ name: getFileName(filePath), path: filePath })),
-      state.pages.length
+      startingIndex
     );
 
     state.pages = [...state.pages, ...nextPages];
-    renderPageList();
+    appendPageItems(nextPages, startingIndex);
 
     if (state.selectedPageIndex === -1 && state.pages.length > 0) {
       selectPage(0);
@@ -273,7 +276,7 @@ clearRecentBtn?.addEventListener("click", async () => {
   }
 });
 
-// --- Drop zone ---
+// ─── Drop zone ────────────────────────────────────────────────────────────────
 
 dropZone.addEventListener("dragover", (e) => {
   e.preventDefault();
@@ -301,7 +304,7 @@ dropZone.addEventListener("drop", (e) => {
   }
 });
 
-// --- Cleanup ---
+// ─── Cleanup ──────────────────────────────────────────────────────────────────
 
 window.addEventListener("beforeunload", () => {
   disposePages(state.pages);
