@@ -1,9 +1,25 @@
 import Electrobun, { BrowserWindow, defineElectrobunRPC } from "electrobun/bun";
-import { writeFile } from "fs/promises";
 import { randomBytes } from "crypto";
+import { mkdir, mkdtemp, readdir, stat, unlink } from "fs/promises";
+import { basename, extname, join } from "path";
+import { homedir, tmpdir } from "os";
+
+type RecentFileEntry = { name: string; path: string };
 
 const securityToken = randomBytes(32).toString('hex');
 let serverPort = 0;
+const recentDir = join(homedir(), ".cbxtool");
+const recentFilePath = join(recentDir, "recent.json");
+
+async function loadRecentFilesFromDisk(): Promise<RecentFileEntry[]> {
+  const recentFile = Bun.file(recentFilePath);
+  if (!(await recentFile.exists())) {
+    return [];
+  }
+
+  const content = await recentFile.text();
+  return JSON.parse(content) as RecentFileEntry[];
+}
 
 // High-performance binary bridge
 const server = Bun.serve({
@@ -46,7 +62,7 @@ const server = Bun.serve({
     } else if (req.method === "POST") {
       try {
         const arrayBuffer = await req.arrayBuffer();
-        await writeFile(filePath, new Uint8Array(arrayBuffer));
+        await Bun.write(filePath, new Uint8Array(arrayBuffer));
         return new Response(JSON.stringify({ success: true }), { headers });
       } catch (e) {
         return new Response(JSON.stringify({ success: false, error: (e as Error).message }), { status: 500, headers });
@@ -69,37 +85,23 @@ const rpc = defineElectrobunRPC("bun", {
         return { port: serverPort, token: securityToken };
       },
       getRecentFiles: async () => {
-        const fs = await import("fs/promises");
-        const path = await import("path");
-        const os = await import("os");
-        const recentFilePath = path.join(os.homedir(), ".cbxtool", "recent.json");
         try {
-          const content = await fs.readFile(recentFilePath, "utf-8");
-          return JSON.parse(content);
+          return await loadRecentFilesFromDisk();
         } catch (e: any) {
-          if (e.code === "ENOENT") return [];
           console.error("Failed to read recent files:", e);
           return [];
         }
       },
       addRecentFile: async ({ name, filePath }: any) => {
         if (!filePath) return { success: false };
-        const fs = await import("fs/promises");
-        const fsSync = await import("fs");
-        const path = await import("path");
-        const os = await import("os");
-        const dir = path.join(os.homedir(), ".cbxtool");
-        const recentFilePath = path.join(dir, "recent.json");
+
         try {
-          if (!fsSync.existsSync(dir)) {
-            await fs.mkdir(dir, { recursive: true });
-          }
-          let current: { name: string; path: string }[] = [];
+          await mkdir(recentDir, { recursive: true });
+          let current: RecentFileEntry[] = [];
           try {
-            const content = await fs.readFile(recentFilePath, "utf-8");
-            current = JSON.parse(content);
-          } catch (e: any) {
-            // Ignore read errors if it doesn't exist
+            current = await loadRecentFilesFromDisk();
+          } catch {
+            // Ignore parse/read errors and rebuild the recent file list.
           }
 
           // Remove if it already exists to bring it to the front
@@ -111,7 +113,7 @@ const rpc = defineElectrobunRPC("bun", {
           // Keep top 10
           if (current.length > 10) current = current.slice(0, 10);
 
-          await fs.writeFile(recentFilePath, JSON.stringify(current, null, 2));
+          await Bun.write(recentFilePath, JSON.stringify(current, null, 2));
           return { success: true };
         } catch (e) {
           console.error("Failed to add recent file:", e);
@@ -119,12 +121,8 @@ const rpc = defineElectrobunRPC("bun", {
         }
       },
       clearRecentFiles: async () => {
-        const fs = await import("fs/promises");
-        const path = await import("path");
-        const os = await import("os");
-        const recentFilePath = path.join(os.homedir(), ".cbxtool", "recent.json");
         try {
-          await fs.unlink(recentFilePath);
+          await unlink(recentFilePath);
           return { success: true };
         } catch (e: any) {
           // If it doesn't exist, clearing is effectively successful
@@ -183,9 +181,6 @@ const rpc = defineElectrobunRPC("bun", {
         console.log(`[Backend] Extracting CBR: ${filePath}`);
         const { createExtractorFromData } = await import("node-unrar-js");
         const { unrarWasmB64 } = await import("./unrar-wasm");
-        const os = await import("os");
-        const path = await import("path");
-        const fs = await import("fs");
 
         try {
           const fileCheck = Bun.file(filePath);
@@ -205,8 +200,8 @@ const rpc = defineElectrobunRPC("bun", {
 
           const images: { name: string; path: string }[] = [];
 
-          const tempBaseDir = path.join(os.tmpdir(), "cbx-tool-");
-          const tempDir = fs.mkdtempSync(tempBaseDir);
+          const tempBaseDir = join(tmpdir(), "cbx-tool-");
+          const tempDir = await mkdtemp(tempBaseDir);
           console.log(`[Backend] Temporary extraction folder: ${tempDir}`);
 
           const imageExtensions = [".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"];
@@ -225,7 +220,7 @@ const rpc = defineElectrobunRPC("bun", {
 
             if (imageExtensions.includes(ext)) {
               if (fileItem.extraction) {
-                const pagePath = path.join(tempDir, path.basename(filename));
+                const pagePath = join(tempDir, basename(filename));
                 await Bun.write(pagePath, fileItem.extraction);
                 images.push({
                   name: filename,
@@ -249,13 +244,9 @@ const rpc = defineElectrobunRPC("bun", {
 
       extractArchiveToFolder: async ({ sourcePath, destinationPath, type }: any) => {
         console.log(`[Backend] extractArchiveToFolder: ${sourcePath} -> ${destinationPath} (${type})`);
-        const fs = await import("fs");
-        const path = await import("path");
 
         try {
-          if (!fs.existsSync(destinationPath)) {
-            fs.mkdirSync(destinationPath, { recursive: true });
-          }
+          await mkdir(destinationPath, { recursive: true });
 
           if (type === 'cbr') {
             const { createExtractorFromData } = await import("node-unrar-js");
@@ -271,7 +262,7 @@ const rpc = defineElectrobunRPC("bun", {
             const { files } = extractor.extract();
             for (const fileItem of files) {
               if (fileItem.fileHeader.flags.directory) continue;
-              const targetFile = path.join(destinationPath, path.basename(fileItem.fileHeader.name));
+              const targetFile = join(destinationPath, basename(fileItem.fileHeader.name));
               if (fileItem.extraction) {
                 await Bun.write(targetFile, fileItem.extraction);
               }
@@ -289,7 +280,7 @@ const rpc = defineElectrobunRPC("bun", {
             for (const [filename, file] of Object.entries(zip.files)) {
               if (file.dir) continue;
               const content = await file.async("uint8array");
-              const targetFile = path.join(destinationPath, path.basename(filename));
+              const targetFile = join(destinationPath, basename(filename));
               await Bun.write(targetFile, content);
             }
           }
@@ -302,18 +293,15 @@ const rpc = defineElectrobunRPC("bun", {
       },
 
       readFolder: async ({ folderPath }: any) => {
-        const { readdir, stat } = await import("fs/promises");
-        const path = await import("path");
-
         try {
           const files = await readdir(folderPath);
           const images: { name: string; path: string; time: number }[] = [];
           const imageExtensions = [".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"];
 
           for (const filename of files) {
-            const ext = path.extname(filename).toLowerCase();
+            const ext = extname(filename).toLowerCase();
             if (imageExtensions.includes(ext)) {
-              const filePath = path.join(folderPath, filename);
+              const filePath = join(folderPath, filename);
               const stats = await stat(filePath);
               // Use birthtime if available and non-zero, otherwise mtime
               const time = stats.birthtimeMs || stats.mtimeMs;
