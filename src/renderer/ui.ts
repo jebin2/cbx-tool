@@ -83,12 +83,18 @@ export function showViewer(canExtract: boolean) {
 export function updateProgressBar() {
   if (!progressBar) return;
 
-  if (state.pages.length === 0 || state.selectedPageIndex < 0) {
+  const selectedPage = state.pages[state.selectedPageIndex];
+  const activePageCount = state.pages.filter((page) => !page.disabled).length;
+
+  if (!selectedPage || selectedPage.disabled || activePageCount === 0) {
     progressBar.style.width = "0%";
     return;
   }
 
-  const progress = ((state.selectedPageIndex + 1) / state.pages.length) * 100;
+  const activePosition = state.pages
+    .slice(0, state.selectedPageIndex + 1)
+    .filter((page) => !page.disabled).length;
+  const progress = (activePosition / activePageCount) * 100;
   progressBar.style.width = `${progress}%`;
 }
 
@@ -104,8 +110,8 @@ export function clearCopyButtonFeedback() {
 }
 
 export function updateCopyButtonState() {
-  const hasSelectedPage =
-    state.selectedPageIndex >= 0 && state.selectedPageIndex < state.pages.length;
+  const selectedPage = state.pages[state.selectedPageIndex];
+  const hasSelectedPage = Boolean(selectedPage && !selectedPage.disabled);
   copyBtn.disabled = !hasSelectedPage;
 
   if (!hasSelectedPage) {
@@ -126,8 +132,35 @@ export function setCopyButtonFeedback(type: "success" | "error", label: string, 
 
 export function resetPageSelection() {
   state.selectedPageIndex = -1;
+  prevImage.removeAttribute("src");
+  currentImage.removeAttribute("src");
+  nextImage.removeAttribute("src");
+  document.querySelectorAll(".page-item").forEach((item) => {
+    item.classList.remove("selected");
+  });
   updateCopyButtonState();
   updateProgressBar();
+}
+
+function findEnabledPageIndex(startIndex: number, direction: 1 | -1, includeStart = false) {
+  let index = includeStart ? startIndex : startIndex + direction;
+
+  while (index >= 0 && index < state.pages.length) {
+    if (!state.pages[index].disabled) return index;
+    index += direction;
+  }
+
+  return -1;
+}
+
+function findNearestEnabledPageIndex(index: number) {
+  if (index < 0 || index >= state.pages.length) return -1;
+  if (!state.pages[index].disabled) return index;
+
+  const nextIndex = findEnabledPageIndex(index, 1);
+  if (nextIndex !== -1) return nextIndex;
+
+  return findEnabledPageIndex(index, -1);
 }
 
 // ─── Page list: item factory ──────────────────────────────────────────────────
@@ -365,7 +398,7 @@ export function setupPageListEvents() {
     if (target.classList.contains("remove-btn")) {
       e.stopPropagation();
       togglePage(index);
-    } else {
+    } else if (!state.pages[index].disabled) {
       selectPage(index);
     }
   });
@@ -374,28 +407,37 @@ export function setupPageListEvents() {
 // ─── Page selection ───────────────────────────────────────────────────────────
 
 export function selectPage(index: number, skipScrollBehavior = false) {
-  if (index < 0 || index >= state.pages.length) return;
-  state.selectedPageIndex = index;
+  const targetIndex = findNearestEnabledPageIndex(index);
+  if (targetIndex === -1) {
+    resetPageSelection();
+    return;
+  }
+
+  state.selectedPageIndex = targetIndex;
 
   prevImage.removeAttribute("src");
   currentImage.removeAttribute("src");
   nextImage.removeAttribute("src");
 
-  if (state.pages[index - 1]) prevImage.src = state.pages[index - 1].url;
-  if (state.pages[index]) currentImage.src = state.pages[index].url;
-  if (state.pages[index + 1]) nextImage.src = state.pages[index + 1].url;
+  const prevIndex = findEnabledPageIndex(targetIndex, -1);
+  const nextIndex = findEnabledPageIndex(targetIndex, 1);
+
+  if (prevIndex !== -1) prevImage.src = state.pages[prevIndex].url;
+  currentImage.src = state.pages[targetIndex].url;
+  if (nextIndex !== -1) nextImage.src = state.pages[nextIndex].url;
 
   if (viewerNode && !skipScrollBehavior) {
+    const activeViewerNode = viewerNode;
     state.isScrollingProgrammatically = true;
     requestAnimationFrame(() => {
-      viewerNode.scrollTo({ top: currentImage.offsetTop, behavior: "instant" });
+      activeViewerNode.scrollTo({ top: currentImage.offsetTop, behavior: "instant" });
       setTimeout(() => { state.isScrollingProgrammatically = false; }, SCROLL_FLAG_RESET_DELAY_MS);
     });
   }
 
   document.querySelectorAll(".page-item").forEach((item, i) => {
-    item.classList.toggle("selected", i === index);
-    if (i === index) {
+    item.classList.toggle("selected", i === targetIndex);
+    if (i === targetIndex) {
       (item as HTMLElement).scrollIntoView({ block: "nearest" });
     }
   });
@@ -404,12 +446,48 @@ export function selectPage(index: number, skipScrollBehavior = false) {
   updateCopyButtonState();
 }
 
+export function selectNextPage(skipScrollBehavior = false) {
+  const nextIndex = findEnabledPageIndex(state.selectedPageIndex, 1);
+  if (nextIndex !== -1) {
+    selectPage(nextIndex, skipScrollBehavior);
+    return true;
+  }
+
+  return false;
+}
+
+export function selectPreviousPage(skipScrollBehavior = false) {
+  const prevIndex = findEnabledPageIndex(state.selectedPageIndex, -1);
+  if (prevIndex !== -1) {
+    selectPage(prevIndex, skipScrollBehavior);
+    return true;
+  }
+
+  return false;
+}
+
 export function togglePage(index: number) {
   if (index < 0 || index >= state.pages.length) return;
   state.pages[index].disabled = !state.pages[index].disabled;
   patchPageItem(index);
   updatePageCount();
-  updateProgressBar();
+
+  if (state.pages[index].disabled && state.selectedPageIndex === index) {
+    selectPage(index, true);
+    return;
+  }
+
+  if (!state.pages[index].disabled && state.selectedPageIndex === -1) {
+    selectPage(index);
+    return;
+  }
+
+  if (state.selectedPageIndex !== -1) {
+    selectPage(state.selectedPageIndex, true);
+  } else {
+    updateProgressBar();
+    updateCopyButtonState();
+  }
 }
 
 // ─── Full page replacement ────────────────────────────────────────────────────
