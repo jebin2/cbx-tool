@@ -778,15 +778,11 @@ button:disabled {
   height: auto;
 }
 
-/* Fit to Height layout */
-.preview-container.fit-height {
-  height: 100%;
-  justify-content: center;
-}
-
+/* Fit to Height layout — continuous vertical strip, each page viewport-height tall */
 .preview-container.fit-height .preview-image {
-  height: 100%;
+  height: calc(100vh - 54px - 80px);
   width: auto;
+  max-width: 100%;
   border-radius: var(--r-sm);
   box-shadow: var(--s4), 0 0 40px rgba(0, 0, 0, 0.5);
 }
@@ -795,12 +791,6 @@ button:disabled {
 .preview-container img:not([src]),
 .preview-container img[src=""] {
   display: none !important;
-}
-
-/* Hide prev/next initially when purely fitting to height */
-.preview-container.fit-height #prevImage,
-.preview-container.fit-height #nextImage {
-  display: none;
 }
 
 /* Spread image hidden outside spread mode */

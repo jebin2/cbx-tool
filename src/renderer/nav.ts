@@ -39,7 +39,8 @@ export function setupScrollHandler() {
   const activeViewerNode = viewerNode;
 
   activeViewerNode.addEventListener("scroll", () => {
-    if (!previewContainer.classList.contains("fit-width") || state.isScrollingProgrammatically) return;
+    const isContinuous = previewContainer.classList.contains("fit-width") || previewContainer.classList.contains("fit-height");
+    if (!isContinuous || state.isScrollingProgrammatically) return;
 
     const st = activeViewerNode.scrollTop;
     const currentTop = currentImage.offsetTop;
@@ -79,21 +80,21 @@ export function setupScrollHandler() {
 export function setupKeyboardHandler() {
   document.addEventListener("keydown", (e) => {
     if (!state.pages.length) return;
-    const isFitWidth = previewContainer.classList.contains("fit-width");
+    const isContinuous = previewContainer.classList.contains("fit-width") || previewContainer.classList.contains("fit-height");
 
     if (e.key === "ArrowRight") {
       selectNextPage();
     } else if (e.key === "ArrowLeft") {
       selectPreviousPage();
     } else if (e.key === "ArrowDown") {
-      if (isFitWidth && viewerNode) {
+      if (isContinuous && viewerNode) {
         e.preventDefault();
         viewerNode.scrollBy({ top: 100, behavior: "smooth" });
       } else {
         selectNextPage();
       }
     } else if (e.key === "ArrowUp") {
-      if (isFitWidth && viewerNode) {
+      if (isContinuous && viewerNode) {
         e.preventDefault();
         viewerNode.scrollBy({ top: -100, behavior: "smooth" });
       } else {
@@ -102,7 +103,7 @@ export function setupKeyboardHandler() {
     } else if (e.key === "Delete" || e.key === "x") {
       togglePage(state.selectedPageIndex);
     } else if (e.key === " " || e.key === "Spacebar") {
-      if (isFitWidth) {
+      if (previewContainer.classList.contains("fit-width")) {
         e.preventDefault();
         if (state.autoScrollInterval !== null) {
           stopAutoScroll();
