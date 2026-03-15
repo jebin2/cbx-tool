@@ -5,7 +5,8 @@
   "dependencies": {
     "electrobun": "^1.0.0",
     "jszip": "^3.10.1",
-    "node-unrar-js": "^2.0.2"
+    "node-unrar-js": "^2.0.2",
+    "pdf-lib": "^1.17.1"
   },
   "scripts": {
     "start": "electrobun dev",

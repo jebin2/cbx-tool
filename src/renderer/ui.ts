@@ -13,11 +13,13 @@ import {
   currentImage,
   dropZone,
   extractBtn,
+  pdfBtn,
   fitToggleBtn,
   spreadBtn,
   spreadImage,
   landingContainer,
   loader,
+  loaderText,
   nextImage,
   pageCount,
   pageList,
@@ -53,8 +55,9 @@ export function setFitToggleToFitHeight() {
 
 // ─── Loader / viewer state ────────────────────────────────────────────────────
 
-export function setLoaderVisible(isVisible: boolean) {
+export function setLoaderVisible(isVisible: boolean, message = "Loading comic…") {
   loader.classList.toggle("hidden", !isVisible);
+  if (isVisible) loaderText.textContent = message;
 }
 
 export function setSaveButtonMode(mode: "save" | "convert") {
@@ -95,6 +98,7 @@ export function showViewer(canExtract: boolean) {
   toolbar?.classList.remove("hidden");
   saveBtn.disabled = false;
   extractBtn.disabled = !canExtract;
+  pdfBtn.disabled = false;
 }
 
 export function showLandingPage() {
@@ -126,6 +130,7 @@ export function showLandingPage() {
 
   saveBtn.disabled = true;
   extractBtn.disabled = true;
+  pdfBtn.disabled = true;
   copyBtn.disabled = true;
   clearCopyButtonFeedback();
   setLoaderVisible(false);

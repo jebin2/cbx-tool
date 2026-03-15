@@ -8,6 +8,7 @@ import {
   currentImage,
   dropZone,
   extractBtn,
+  pdfBtn,
   fileInput,
   fitToggleBtn,
   spreadBtn,
@@ -44,6 +45,7 @@ import {
 import { openComicFile, startOpenRequest, isActiveOpenRequest, loadRecentFiles } from "./loader.ts";
 import { copyCurrentPageToClipboard } from "./clipboard.ts";
 import { saveComic } from "./save.ts";
+import { exportAsPdf } from "./pdf.ts";
 import {
   startAutoScroll,
   stopAutoScroll,
@@ -163,6 +165,7 @@ homeBtn.addEventListener("click", async () => {
 });
 
 saveBtn.addEventListener("click", saveComic);
+pdfBtn.addEventListener("click", exportAsPdf);
 copyBtn.addEventListener("click", copyCurrentPageToClipboard);
 
 extractBtn.addEventListener("click", async () => {
