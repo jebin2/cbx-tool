@@ -58,6 +58,8 @@ import {
 
 // ─── Initialization ───────────────────────────────────────────────────────────
 
+document.addEventListener("contextmenu", (e) => e.preventDefault());
+
 initRPC(() => loadRecentFiles());
 setupModalListeners();
 setupScrollHandler();
