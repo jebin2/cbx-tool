@@ -1,7 +1,6 @@
-import { SCROLL_FLAG_RESET_DELAY_MS, PAGE_SWITCH_SCROLL_THRESHOLD } from "./constants.ts";
-import { autoScrollBtn, autoScrollGroup, autoScrollSpeedInput, currentImage, previewContainer, viewerNode } from "./dom.ts";
+import { autoScrollBtn, autoScrollGroup, autoScrollSpeedInput, previewContainer, viewerNode } from "./dom.ts";
 import { state } from "./state.ts";
-import { loadHStripWindow, selectNextPage, selectPreviousPage, selectPage, togglePage, updateProgressBar } from "./ui.ts";
+import { loadHStripWindow, loadVStripWindow, selectNextPage, selectPreviousPage, selectPage, togglePage, updateProgressBar } from "./ui.ts";
 
 export function stopAutoScroll() {
   if (state.autoScrollInterval !== null) {
@@ -38,9 +37,9 @@ export function setupScrollHandler() {
   if (!viewerNode) return;
   const activeViewerNode = viewerNode;
 
-  // After scroll stops, sync sidebar highlight / progress bar for hstrip.
+  // After scroll stops, sync sidebar highlight / progress bar for hstrip and vstrip.
   activeViewerNode.addEventListener("scrollend", () => {
-    if (previewContainer.classList.contains("hstrip")) {
+    if (previewContainer.classList.contains("hstrip") || previewContainer.classList.contains("vstrip")) {
       selectPage(state.selectedPageIndex, true);
     }
   });
@@ -49,7 +48,7 @@ export function setupScrollHandler() {
     if (state.isScrollingProgrammatically) return;
 
     const isHStrip = previewContainer.classList.contains("hstrip");
-    const isContinuous = previewContainer.classList.contains("fit-width") || previewContainer.classList.contains("fit-height");
+    const isVStrip = previewContainer.classList.contains("vstrip");
 
     if (isHStrip) {
       // Find which page is currently centered in the viewport.
@@ -69,29 +68,19 @@ export function setupScrollHandler() {
           updateProgressBar();
         });
       }
-    } else if (isContinuous) {
-      // Vertical page switching
-      const st = activeViewerNode.scrollTop;
-      const currentTop = currentImage.offsetTop;
-      const currentBottom = currentTop + currentImage.offsetHeight;
-
-      if (st > currentBottom - PAGE_SWITCH_SCROLL_THRESHOLD && state.selectedPageIndex < state.pages.length - 1) {
-        state.isScrollingProgrammatically = true;
-        const offset = st - currentBottom;
-        const changed = selectNextPage(true);
-        if (!changed) { state.isScrollingProgrammatically = false; return; }
+    } else if (isVStrip) {
+      const tops = state.vstripTops;
+      if (!tops.length) return;
+      const centerY = activeViewerNode.scrollTop + activeViewerNode.clientHeight / 2;
+      let newIndex = state.selectedPageIndex;
+      for (let i = 0; i < tops.length; i++) {
+        if (!state.pages[i]?.disabled && tops[i] <= centerY) newIndex = i;
+      }
+      if (newIndex !== state.selectedPageIndex) {
+        state.selectedPageIndex = newIndex;
         requestAnimationFrame(() => {
-          activeViewerNode.scrollTo({ top: currentImage.offsetTop + offset, behavior: "instant" });
-          setTimeout(() => { state.isScrollingProgrammatically = false; }, SCROLL_FLAG_RESET_DELAY_MS);
-        });
-      } else if (st < currentTop - PAGE_SWITCH_SCROLL_THRESHOLD && state.selectedPageIndex > 0) {
-        state.isScrollingProgrammatically = true;
-        const offset = currentTop - st;
-        const changed = selectPreviousPage(true);
-        if (!changed) { state.isScrollingProgrammatically = false; return; }
-        requestAnimationFrame(() => {
-          activeViewerNode.scrollTo({ top: (currentImage.offsetTop + currentImage.offsetHeight) - offset, behavior: "instant" });
-          setTimeout(() => { state.isScrollingProgrammatically = false; }, SCROLL_FLAG_RESET_DELAY_MS);
+          loadVStripWindow(newIndex);
+          updateProgressBar();
         });
       }
     }
@@ -101,7 +90,7 @@ export function setupScrollHandler() {
 export function setupKeyboardHandler() {
   document.addEventListener("keydown", (e) => {
     if (!state.pages.length) return;
-    const isContinuous = previewContainer.classList.contains("fit-width") || previewContainer.classList.contains("fit-height");
+    const isVStrip = previewContainer.classList.contains("vstrip");
     const isHStrip = previewContainer.classList.contains("hstrip");
 
     if (e.key === "ArrowRight") {
@@ -119,14 +108,14 @@ export function setupKeyboardHandler() {
         selectPreviousPage();
       }
     } else if (e.key === "ArrowDown") {
-      if (isContinuous && viewerNode) {
+      if (isVStrip && viewerNode) {
         e.preventDefault();
         viewerNode.scrollBy({ top: 100, behavior: "smooth" });
       } else if (!isHStrip) {
         selectNextPage();
       }
     } else if (e.key === "ArrowUp") {
-      if (isContinuous && viewerNode) {
+      if (isVStrip && viewerNode) {
         e.preventDefault();
         viewerNode.scrollBy({ top: -100, behavior: "smooth" });
       } else if (!isHStrip) {
@@ -135,7 +124,7 @@ export function setupKeyboardHandler() {
     } else if (e.key === "Delete" || e.key === "x") {
       togglePage(state.selectedPageIndex);
     } else if (e.key === " " || e.key === "Spacebar") {
-      if (previewContainer.classList.contains("fit-width")) {
+      if (previewContainer.classList.contains("fit-width") || previewContainer.classList.contains("vstrip")) {
         e.preventDefault();
         if (state.autoScrollInterval !== null) {
           stopAutoScroll();

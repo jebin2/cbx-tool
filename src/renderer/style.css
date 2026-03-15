@@ -829,6 +829,37 @@ button:disabled {
   display: none;
 }
 
+/* ── Vertical Strip mode ─────────────────────────── */
+.preview-container.vstrip {
+  position: relative;
+  flex-shrink: 0;
+  width: 100%;
+  /* height set by JS */
+}
+
+.preview-container.vstrip .vstrip-page {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  will-change: transform;
+  border-radius: var(--r-sm);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+  transition: none;
+}
+
+.preview-container.vstrip.fit-height .vstrip-page {
+  height: calc(100vh - 54px - 80px);
+  width: auto;
+  max-width: 100%;
+}
+
+.preview-container.vstrip.fit-width .vstrip-page {
+  width: 100%;
+  left: 0;
+  transform: none;
+  /* height set by JS */
+}
+
 /* Spread (double-page) layout */
 .preview-container.spread {
   flex-direction: row;

@@ -5,7 +5,6 @@ import {
   autoScrollBtn,
   clearRecentBtn,
   copyBtn,
-  currentImage,
   dropZone,
   extractBtn,
   pdfBtn,
@@ -26,7 +25,6 @@ import {
   saveBtn,
   viewerNode,
 } from "./dom.ts";
-import { SCROLL_FLAG_RESET_DELAY_MS } from "./constants.ts";
 import { getFileExtension, getFileName, getFolderName, waitForUiTick } from "./utils.ts";
 import { fetchBridgeFile, initRPC } from "./bridge.ts";
 import { showMessageModal, setupModalListeners } from "./modal.ts";
@@ -36,6 +34,8 @@ import {
   appendPageItems,
   enterHStripMode,
   exitHStripMode,
+  exitVStripMode,
+  reinitVStrip,
   renderPageList,
   selectPage,
   setLoaderVisible,
@@ -324,26 +324,19 @@ fitToggleBtn.addEventListener("click", () => {
     previewContainer.classList.remove("fit-height", "spread");
     previewContainer.classList.add("fit-width");
     setFitToggleToFitHeight();
-
-    if (viewerNode) {
-      state.isScrollingProgrammatically = true;
-      requestAnimationFrame(() => {
-        viewerNode.scrollTo({ top: currentImage.offsetTop, behavior: "instant" });
-        setTimeout(() => { state.isScrollingProgrammatically = false; }, SCROLL_FLAG_RESET_DELAY_MS);
-      });
-    }
   }
 
-  if (state.selectedPageIndex !== -1) {
-    selectPage(state.selectedPageIndex, true);
-  }
+  // Ensure vstrip class is present and reinit layout for new mode
+  previewContainer.classList.add("vstrip");
+  reinitVStrip();
 });
 
 hStripBtn.addEventListener("click", () => {
+  exitVStripMode();
   exitHStripMode();
   state.isSpreadMode = false;
   spreadBtn.classList.remove("active");
-  previewContainer.classList.remove("fit-width", "fit-height", "spread");
+  previewContainer.classList.remove("fit-width", "fit-height", "spread", "vstrip");
   previewContainer.classList.add("hstrip");
   viewerNode?.classList.add("hstrip-mode");
   hStripBtn.classList.add("active");
@@ -351,11 +344,12 @@ hStripBtn.addEventListener("click", () => {
 });
 
 spreadBtn.addEventListener("click", () => {
+  exitVStripMode();
   exitHStripMode();
   state.isSpreadMode = true;
   stopAutoScroll();
   hStripBtn.classList.remove("active");
-  previewContainer.classList.remove("fit-width", "fit-height", "hstrip");
+  previewContainer.classList.remove("fit-width", "fit-height", "hstrip", "vstrip");
   previewContainer.classList.add("spread");
   viewerNode?.classList.remove("hstrip-mode");
   spreadBtn.classList.add("active");

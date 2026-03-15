@@ -232,15 +232,172 @@ export function exitHStripMode() {
   nextImage.style.display = "";
 }
 
+// ─── Vertical strip mode ─────────────────────────────────────────────────────
+
+const VSTRIP_GAP = 32;
+const VSTRIP_ASPECT = 1.5; // estimated portrait page height/width ratio (h/w)
+const VSTRIP_BUFFER = 2;
+
+function vstripMode(): "fit-height" | "fit-width" {
+  return previewContainer.classList.contains("fit-width") ? "fit-width" : "fit-height";
+}
+
+function vstripHalfWindow(): number {
+  if (!viewerNode) return 3;
+  const midH = state.vstripHeights.length > 0
+    ? state.vstripHeights[Math.floor(state.vstripHeights.length / 2)]
+    : viewerNode.clientHeight - 80;
+  const pagesPerView = Math.ceil(viewerNode.clientHeight / (midH + VSTRIP_GAP));
+  return Math.ceil(pagesPerView / 2) + VSTRIP_BUFFER;
+}
+
+function vstripEstimatedHeight(): number {
+  if (!viewerNode) return 800;
+  if (vstripMode() === "fit-height") return viewerNode.clientHeight - 80;
+  return Math.round(viewerNode.clientWidth * VSTRIP_ASPECT);
+}
+
+function recomputeVStripTopsFrom(fromIndex: number) {
+  let y = fromIndex === 0
+    ? 0
+    : state.vstripTops[fromIndex - 1] + state.vstripHeights[fromIndex - 1] + VSTRIP_GAP;
+  for (let i = fromIndex; i < state.pages.length; i++) {
+    state.vstripTops[i] = y;
+    y += state.vstripHeights[i] + VSTRIP_GAP;
+  }
+  state.vstripTotalHeight = state.pages.length > 0 ? y - VSTRIP_GAP : 0;
+  if (previewContainer) previewContainer.style.height = state.vstripTotalHeight + "px";
+}
+
+function initVStripLayout() {
+  const h = vstripEstimatedHeight();
+  state.vstripHeights = state.pages.map(() => h);
+  state.vstripTops = [];
+  recomputeVStripTopsFrom(0);
+}
+
+function onVStripImageLoaded(pageIndex: number, img: HTMLImageElement) {
+  if (vstripMode() !== "fit-width") return; // fit-height has fixed height via CSS
+  if (!img.naturalWidth || !img.naturalHeight) return;
+
+  const containerW = viewerNode ? viewerNode.clientWidth : window.innerWidth;
+  const actualH = Math.round(img.naturalHeight * (containerW / img.naturalWidth));
+  const delta = actualH - state.vstripHeights[pageIndex];
+  if (delta === 0) return;
+
+  state.vstripHeights[pageIndex] = actualH;
+  img.style.height = actualH + "px";
+
+  recomputeVStripTopsFrom(pageIndex);
+
+  for (const [idx, el] of state.vstripElementMap) {
+    if (idx > pageIndex) {
+      el.style.top = state.vstripTops[idx] + "px";
+    }
+  }
+
+  if (viewerNode && state.vstripTops[pageIndex] < viewerNode.scrollTop) {
+    viewerNode.scrollTop += delta;
+  }
+}
+
+function makeVStripImg(pageIndex: number): HTMLImageElement {
+  const page = state.pages[pageIndex];
+  const img = document.createElement("img");
+  img.className = "preview-image vstrip-page";
+  img.dataset.pageIndex = String(pageIndex);
+  img.alt = `Page ${pageIndex + 1}`;
+  if (page.disabled) img.dataset.disabled = "true";
+  img.style.top = state.vstripTops[pageIndex] + "px";
+  if (vstripMode() === "fit-width") {
+    img.style.height = state.vstripHeights[pageIndex] + "px";
+  }
+  img.addEventListener("load", () => onVStripImageLoaded(pageIndex, img));
+  return img;
+}
+
+export function loadVStripWindow(centerIndex: number) {
+  const half = vstripHalfWindow();
+  const targetLo = Math.max(0, centerIndex - half);
+  const targetHi = Math.min(state.pages.length - 1, centerIndex + half);
+
+  for (const [idx, el] of state.vstripElementMap) {
+    if (idx < targetLo || idx > targetHi) {
+      el.remove();
+      state.vstripElementMap.delete(idx);
+    }
+  }
+
+  for (let i = targetLo; i <= targetHi; i++) {
+    if (!state.vstripElementMap.has(i)) {
+      const img = makeVStripImg(i);
+      if (!state.pages[i].disabled) {
+        img.src = state.pages[i].url;
+        img.decode().catch(() => {});
+      }
+      previewContainer.appendChild(img);
+      state.vstripElementMap.set(i, img);
+    }
+  }
+}
+
+export function enterVStripMode() {
+  prevImage.style.display = "none";
+  currentImage.style.display = "none";
+  spreadImage.style.display = "none";
+  nextImage.style.display = "none";
+
+  state.vstripElementMap.clear();
+  initVStripLayout();
+
+  const center = state.selectedPageIndex >= 0 ? state.selectedPageIndex : 0;
+  loadVStripWindow(center);
+
+  requestAnimationFrame(() => {
+    if (viewerNode) viewerNode.scrollTop = state.vstripTops[center] ?? 0;
+  });
+}
+
+export function exitVStripMode() {
+  for (const el of state.vstripElementMap.values()) el.remove();
+  state.vstripElementMap.clear();
+  state.vstripTops = [];
+  state.vstripHeights = [];
+  state.vstripTotalHeight = 0;
+  if (previewContainer) {
+    previewContainer.style.height = "";
+  }
+  prevImage.style.display = "";
+  currentImage.style.display = "";
+  spreadImage.style.display = "";
+  nextImage.style.display = "";
+}
+
+export function reinitVStrip() {
+  if (!previewContainer.classList.contains("vstrip")) return;
+  const center = state.selectedPageIndex >= 0 ? state.selectedPageIndex : 0;
+
+  for (const el of state.vstripElementMap.values()) el.remove();
+  state.vstripElementMap.clear();
+
+  initVStripLayout();
+  loadVStripWindow(center);
+
+  requestAnimationFrame(() => {
+    if (viewerNode) viewerNode.scrollTop = state.vstripTops[center] ?? 0;
+  });
+}
+
 export function showViewer(canExtract: boolean) {
+  exitVStripMode();
   exitHStripMode();
   landingContainer.classList.add("hidden");
   recentFilesContainer.classList.add("hidden");
   dropZone.classList.add("hidden");
   progressBarContainer.classList.remove("hidden");
   previewContainer.classList.remove("hidden");
-  previewContainer.classList.remove("fit-width", "spread", "hstrip");
-  previewContainer.classList.add("fit-height");
+  previewContainer.classList.remove("fit-width", "spread", "hstrip", "vstrip");
+  previewContainer.classList.add("fit-height", "vstrip");
   setFitToggleToFitWidth();
   hStripBtn.classList.remove("active");
   spreadBtn.classList.remove("active");
@@ -252,9 +409,11 @@ export function showViewer(canExtract: boolean) {
   saveBtn.disabled = false;
   extractBtn.disabled = !canExtract;
   pdfBtn.disabled = false;
+  enterVStripMode();
 }
 
 export function showLandingPage() {
+  exitVStripMode();
   exitHStripMode();
   replacePages([]);
   state.currentFileName = "";
@@ -264,10 +423,10 @@ export function showLandingPage() {
 
   pageList.innerHTML = "";
   pageCount.textContent = "—";
-  progressBar.style.width = "0%";
+  progressBar.style.transform = "scaleX(0)";
   progressBarContainer.classList.add("hidden");
   previewContainer.classList.add("hidden");
-  previewContainer.classList.remove("fit-width", "fit-height", "spread", "hstrip");
+  previewContainer.classList.remove("fit-width", "fit-height", "spread", "hstrip", "vstrip");
   setFitToggleToFitWidth();
   hStripBtn.classList.remove("active");
   spreadBtn.classList.remove("active");
@@ -496,6 +655,14 @@ export function appendPageItems(newPages: ComicPage[], startingIndex: number) {
   });
   updatePageCount();
   updateCopyButtonState();
+  if (previewContainer.classList.contains("vstrip")) {
+    const h = vstripEstimatedHeight();
+    for (let i = startingIndex; i < startingIndex + newPages.length; i++) {
+      state.vstripHeights[i] = h;
+    }
+    recomputeVStripTopsFrom(startingIndex);
+    loadVStripWindow(state.selectedPageIndex);
+  }
 }
 
 // ─── Page list: full render + event delegation ────────────────────────────────
@@ -635,6 +802,7 @@ export function selectPage(index: number, skipScrollBehavior = false) {
   state.selectedPageIndex = targetIndex;
 
   const isHStrip = previewContainer.classList.contains("hstrip");
+  const isVStrip = previewContainer.classList.contains("vstrip");
 
   if (isHStrip) {
     loadHStripWindow(targetIndex);
@@ -645,7 +813,17 @@ export function selectPage(index: number, skipScrollBehavior = false) {
         setTimeout(() => { state.isScrollingProgrammatically = false; }, SCROLL_FLAG_RESET_DELAY_MS);
       });
     }
+  } else if (isVStrip) {
+    loadVStripWindow(targetIndex);
+    if (viewerNode && !skipScrollBehavior) {
+      state.isScrollingProgrammatically = true;
+      requestAnimationFrame(() => {
+        viewerNode!.scrollTo({ top: state.vstripTops[targetIndex] ?? 0, behavior: "instant" });
+        setTimeout(() => { state.isScrollingProgrammatically = false; }, SCROLL_FLAG_RESET_DELAY_MS);
+      });
+    }
   } else {
+    // spread mode
     prevImage.removeAttribute("src");
     currentImage.removeAttribute("src");
     spreadImage.removeAttribute("src");
