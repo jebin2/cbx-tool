@@ -9,8 +9,7 @@ import {
   dropZone,
   extractBtn,
   fileInput,
-  fitHeightBtn,
-  fitWidthBtn,
+  fitToggleBtn,
   spreadBtn,
   homeBtn,
   landingContainer,
@@ -37,6 +36,8 @@ import {
   selectPage,
   setLoaderVisible,
   setSaveButtonMode,
+  setFitToggleToFitWidth,
+  setFitToggleToFitHeight,
   showLandingPage,
   setupPageListEvents,
 } from "./ui.ts";
@@ -301,34 +302,27 @@ autoScrollBtn.addEventListener("click", () => {
   }
 });
 
-fitWidthBtn.addEventListener("click", () => {
+fitToggleBtn.addEventListener("click", () => {
   state.isSpreadMode = false;
-  previewContainer.classList.remove("fit-height", "spread");
-  previewContainer.classList.add("fit-width");
-  fitHeightBtn.classList.remove("active");
   spreadBtn.classList.remove("active");
-  fitWidthBtn.classList.add("active");
 
-  if (viewerNode) {
-    state.isScrollingProgrammatically = true;
-    requestAnimationFrame(() => {
-      viewerNode.scrollTo({ top: currentImage.offsetTop, behavior: "instant" });
-      setTimeout(() => { state.isScrollingProgrammatically = false; }, SCROLL_FLAG_RESET_DELAY_MS);
-    });
+  if (previewContainer.classList.contains("fit-width")) {
+    previewContainer.classList.remove("fit-width");
+    previewContainer.classList.add("fit-height");
+    setFitToggleToFitWidth();
+  } else {
+    previewContainer.classList.remove("fit-height", "spread");
+    previewContainer.classList.add("fit-width");
+    setFitToggleToFitHeight();
+
+    if (viewerNode) {
+      state.isScrollingProgrammatically = true;
+      requestAnimationFrame(() => {
+        viewerNode.scrollTo({ top: currentImage.offsetTop, behavior: "instant" });
+        setTimeout(() => { state.isScrollingProgrammatically = false; }, SCROLL_FLAG_RESET_DELAY_MS);
+      });
+    }
   }
-
-  if (state.selectedPageIndex !== -1) {
-    selectPage(state.selectedPageIndex, true);
-  }
-});
-
-fitHeightBtn.addEventListener("click", () => {
-  state.isSpreadMode = false;
-  previewContainer.classList.remove("fit-width", "spread");
-  previewContainer.classList.add("fit-height");
-  fitWidthBtn.classList.remove("active");
-  spreadBtn.classList.remove("active");
-  fitHeightBtn.classList.add("active");
 
   if (state.selectedPageIndex !== -1) {
     selectPage(state.selectedPageIndex, true);
@@ -340,8 +334,6 @@ spreadBtn.addEventListener("click", () => {
   stopAutoScroll();
   previewContainer.classList.remove("fit-width", "fit-height");
   previewContainer.classList.add("spread");
-  fitWidthBtn.classList.remove("active");
-  fitHeightBtn.classList.remove("active");
   spreadBtn.classList.add("active");
 
   if (state.selectedPageIndex !== -1) {

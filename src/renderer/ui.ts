@@ -13,8 +13,7 @@ import {
   currentImage,
   dropZone,
   extractBtn,
-  fitHeightBtn,
-  fitWidthBtn,
+  fitToggleBtn,
   spreadBtn,
   spreadImage,
   landingContainer,
@@ -34,6 +33,23 @@ import {
 } from "./dom.ts";
 import { state } from "./state.ts";
 import { replacePages } from "./pages.ts";
+
+// ─── Fit toggle icon helpers ──────────────────────────────────────────────────
+
+const FIT_WIDTH_SVG = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" /></svg>`;
+const FIT_HEIGHT_SVG = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 15v6h6M19 9V3h-6M5 21l7-7M19 3l-7 7" /></svg>`;
+
+/** Call after switching to fit-height mode — button now offers fit-width */
+export function setFitToggleToFitWidth() {
+  fitToggleBtn.innerHTML = FIT_WIDTH_SVG;
+  fitToggleBtn.title = "Fit to Width";
+}
+
+/** Call after switching to fit-width mode — button now offers fit-height */
+export function setFitToggleToFitHeight() {
+  fitToggleBtn.innerHTML = FIT_HEIGHT_SVG;
+  fitToggleBtn.title = "Fit to Height";
+}
 
 // ─── Loader / viewer state ────────────────────────────────────────────────────
 
@@ -71,8 +87,7 @@ export function showViewer(canExtract: boolean) {
   previewContainer.classList.remove("hidden");
   previewContainer.classList.remove("fit-width", "spread");
   previewContainer.classList.add("fit-height");
-  fitWidthBtn.classList.remove("active");
-  fitHeightBtn.classList.add("active");
+  setFitToggleToFitWidth();
   spreadBtn.classList.remove("active");
   state.isSpreadMode = false;
   viewerNode?.classList.add("has-content");
@@ -95,8 +110,7 @@ export function showLandingPage() {
   progressBarContainer.classList.add("hidden");
   previewContainer.classList.add("hidden");
   previewContainer.classList.remove("fit-width", "fit-height", "spread");
-  fitWidthBtn.classList.remove("active");
-  fitHeightBtn.classList.add("active");
+  setFitToggleToFitWidth();
   spreadBtn.classList.remove("active");
   state.isSpreadMode = false;
   sidebar?.classList.add("hidden");

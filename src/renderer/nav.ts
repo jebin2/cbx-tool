@@ -1,5 +1,5 @@
 import { SCROLL_FLAG_RESET_DELAY_MS, PAGE_SWITCH_SCROLL_THRESHOLD } from "./constants.ts";
-import { autoScrollBtn, autoScrollGroup, autoScrollSpeedInput, currentImage, fitWidthBtn, previewContainer, viewerNode } from "./dom.ts";
+import { autoScrollBtn, autoScrollGroup, autoScrollSpeedInput, currentImage, fitToggleBtn, previewContainer, viewerNode } from "./dom.ts";
 import { state } from "./state.ts";
 import { selectNextPage, selectPreviousPage, togglePage } from "./ui.ts";
 
@@ -15,8 +15,8 @@ export function stopAutoScroll() {
 export function startAutoScroll() {
   if (!state.pages.length) return;
 
-  if (!fitWidthBtn.classList.contains("active")) {
-    fitWidthBtn.click();
+  if (!previewContainer.classList.contains("fit-width")) {
+    fitToggleBtn.click();
   }
 
   autoScrollBtn.classList.add("active");
