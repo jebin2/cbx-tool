@@ -347,7 +347,6 @@ hStripBtn.addEventListener("click", () => {
   previewContainer.classList.add("hstrip");
   viewerNode?.classList.add("hstrip-mode");
   hStripBtn.classList.add("active");
-  stopAutoScroll();
   enterHStripMode();
 });
 
