@@ -15,6 +15,8 @@ import {
   extractBtn,
   fitHeightBtn,
   fitWidthBtn,
+  spreadBtn,
+  spreadImage,
   landingContainer,
   loader,
   nextImage,
@@ -67,10 +69,12 @@ export function showViewer(canExtract: boolean) {
   dropZone.classList.add("hidden");
   progressBarContainer.classList.remove("hidden");
   previewContainer.classList.remove("hidden");
-  previewContainer.classList.remove("fit-width");
+  previewContainer.classList.remove("fit-width", "spread");
   previewContainer.classList.add("fit-height");
   fitWidthBtn.classList.remove("active");
   fitHeightBtn.classList.add("active");
+  spreadBtn.classList.remove("active");
+  state.isSpreadMode = false;
   viewerNode?.classList.add("has-content");
   sidebar?.classList.remove("hidden");
   toolbar?.classList.remove("hidden");
@@ -90,9 +94,11 @@ export function showLandingPage() {
   progressBar.style.width = "0%";
   progressBarContainer.classList.add("hidden");
   previewContainer.classList.add("hidden");
-  previewContainer.classList.remove("fit-width", "fit-height");
+  previewContainer.classList.remove("fit-width", "fit-height", "spread");
   fitWidthBtn.classList.remove("active");
   fitHeightBtn.classList.add("active");
+  spreadBtn.classList.remove("active");
+  state.isSpreadMode = false;
   sidebar?.classList.add("hidden");
   toolbar?.classList.add("hidden");
   landingContainer.classList.remove("hidden");
@@ -171,6 +177,7 @@ export function resetPageSelection() {
   state.selectedPageIndex = -1;
   prevImage.removeAttribute("src");
   currentImage.removeAttribute("src");
+  spreadImage.removeAttribute("src");
   nextImage.removeAttribute("src");
   document.querySelectorAll(".page-item").forEach((item) => {
     item.classList.remove("selected");
@@ -454,16 +461,22 @@ export function selectPage(index: number, skipScrollBehavior = false) {
 
   prevImage.removeAttribute("src");
   currentImage.removeAttribute("src");
+  spreadImage.removeAttribute("src");
   nextImage.removeAttribute("src");
 
-  const prevIndex = findEnabledPageIndex(targetIndex, -1);
-  const nextIndex = findEnabledPageIndex(targetIndex, 1);
+  if (state.isSpreadMode) {
+    currentImage.src = state.pages[targetIndex].url;
+    const spreadIndex = findEnabledPageIndex(targetIndex, 1);
+    if (spreadIndex !== -1) spreadImage.src = state.pages[spreadIndex].url;
+  } else {
+    const prevIndex = findEnabledPageIndex(targetIndex, -1);
+    const nextIndex = findEnabledPageIndex(targetIndex, 1);
+    if (prevIndex !== -1) prevImage.src = state.pages[prevIndex].url;
+    currentImage.src = state.pages[targetIndex].url;
+    if (nextIndex !== -1) nextImage.src = state.pages[nextIndex].url;
+  }
 
-  if (prevIndex !== -1) prevImage.src = state.pages[prevIndex].url;
-  currentImage.src = state.pages[targetIndex].url;
-  if (nextIndex !== -1) nextImage.src = state.pages[nextIndex].url;
-
-  if (viewerNode && !skipScrollBehavior) {
+  if (viewerNode && !skipScrollBehavior && !state.isSpreadMode) {
     const activeViewerNode = viewerNode;
     state.isScrollingProgrammatically = true;
     requestAnimationFrame(() => {
@@ -484,6 +497,16 @@ export function selectPage(index: number, skipScrollBehavior = false) {
 }
 
 export function selectNextPage(skipScrollBehavior = false) {
+  if (state.isSpreadMode) {
+    // Skip 2 enabled pages: right page of current pair → next left page
+    const rightIndex = findEnabledPageIndex(state.selectedPageIndex, 1);
+    if (rightIndex === -1) return false;
+    const nextLeftIndex = findEnabledPageIndex(rightIndex, 1);
+    if (nextLeftIndex === -1) return false;
+    selectPage(nextLeftIndex, skipScrollBehavior);
+    return true;
+  }
+
   const nextIndex = findEnabledPageIndex(state.selectedPageIndex, 1);
   if (nextIndex !== -1) {
     selectPage(nextIndex, skipScrollBehavior);
@@ -494,6 +517,15 @@ export function selectNextPage(skipScrollBehavior = false) {
 }
 
 export function selectPreviousPage(skipScrollBehavior = false) {
+  if (state.isSpreadMode) {
+    // Go back 2 enabled pages; if only 1 back exists, go there
+    const onePrevIndex = findEnabledPageIndex(state.selectedPageIndex, -1);
+    if (onePrevIndex === -1) return false;
+    const twoPrevIndex = findEnabledPageIndex(onePrevIndex, -1);
+    selectPage(twoPrevIndex !== -1 ? twoPrevIndex : onePrevIndex, skipScrollBehavior);
+    return true;
+  }
+
   const prevIndex = findEnabledPageIndex(state.selectedPageIndex, -1);
   if (prevIndex !== -1) {
     selectPage(prevIndex, skipScrollBehavior);

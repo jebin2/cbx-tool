@@ -11,6 +11,7 @@ import {
   fileInput,
   fitHeightBtn,
   fitWidthBtn,
+  spreadBtn,
   homeBtn,
   landingContainer,
   landingOpenBtn,
@@ -301,9 +302,11 @@ autoScrollBtn.addEventListener("click", () => {
 });
 
 fitWidthBtn.addEventListener("click", () => {
-  previewContainer.classList.remove("fit-height");
+  state.isSpreadMode = false;
+  previewContainer.classList.remove("fit-height", "spread");
   previewContainer.classList.add("fit-width");
   fitHeightBtn.classList.remove("active");
+  spreadBtn.classList.remove("active");
   fitWidthBtn.classList.add("active");
 
   if (viewerNode) {
@@ -313,13 +316,37 @@ fitWidthBtn.addEventListener("click", () => {
       setTimeout(() => { state.isScrollingProgrammatically = false; }, SCROLL_FLAG_RESET_DELAY_MS);
     });
   }
+
+  if (state.selectedPageIndex !== -1) {
+    selectPage(state.selectedPageIndex, true);
+  }
 });
 
 fitHeightBtn.addEventListener("click", () => {
-  previewContainer.classList.remove("fit-width");
+  state.isSpreadMode = false;
+  previewContainer.classList.remove("fit-width", "spread");
   previewContainer.classList.add("fit-height");
   fitWidthBtn.classList.remove("active");
+  spreadBtn.classList.remove("active");
   fitHeightBtn.classList.add("active");
+
+  if (state.selectedPageIndex !== -1) {
+    selectPage(state.selectedPageIndex, true);
+  }
+});
+
+spreadBtn.addEventListener("click", () => {
+  state.isSpreadMode = true;
+  stopAutoScroll();
+  previewContainer.classList.remove("fit-width", "fit-height");
+  previewContainer.classList.add("spread");
+  fitWidthBtn.classList.remove("active");
+  fitHeightBtn.classList.remove("active");
+  spreadBtn.classList.add("active");
+
+  if (state.selectedPageIndex !== -1) {
+    selectPage(state.selectedPageIndex, true);
+  }
 });
 
 clearRecentBtn?.addEventListener("click", async () => {

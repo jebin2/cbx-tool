@@ -11,6 +11,7 @@ export const state = {
   binaryConfig: null as BinaryConfig | null,
   isFolderMode: false,
 
+  isSpreadMode: false,
   isScrollingProgrammatically: false,
   autoScrollInterval: null as number | null,
   draggedItemIndex: null as number | null,
