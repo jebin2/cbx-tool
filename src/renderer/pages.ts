@@ -2,7 +2,7 @@ import JSZip from "jszip";
 import type { ComicPage, FileEntry } from "./types.ts";
 import { state } from "./state.ts";
 import { isImageFile } from "./utils.ts";
-import { fetchBridgeBlob } from "./bridge.ts";
+import { createBridgeUrl } from "./bridge.ts";
 
 export function createPage(filename: string, blob: Blob, originalOrder: number): ComicPage {
   return {
@@ -14,8 +14,20 @@ export function createPage(filename: string, blob: Blob, originalOrder: number):
   };
 }
 
+function createBridgePage(filename: string, filePath: string, originalOrder: number): ComicPage {
+  return {
+    filename,
+    url: createBridgeUrl("/file", { path: filePath }),
+    blob: null,
+    disabled: false,
+    originalOrder,
+  };
+}
+
 export function disposePages(pageList: ComicPage[]) {
-  pageList.forEach((page) => URL.revokeObjectURL(page.url));
+  pageList.forEach((page) => {
+    if (page.url.startsWith("blob:")) URL.revokeObjectURL(page.url);
+  });
 }
 
 export function replacePages(nextPages: ComicPage[]) {
@@ -23,11 +35,8 @@ export function replacePages(nextPages: ComicPage[]) {
   state.pages = nextPages;
 }
 
-export async function loadPagesFromBridgeFiles(files: FileEntry[], startingOrder = 0): Promise<ComicPage[]> {
-  return Promise.all(files.map(async (file, index) => {
-    const blob = await fetchBridgeBlob(file.path);
-    return createPage(file.name, blob, startingOrder + index);
-  }));
+export function loadPagesFromBridgeFiles(files: FileEntry[], startingOrder = 0): ComicPage[] {
+  return files.map((file, index) => createBridgePage(file.name, file.path, startingOrder + index));
 }
 
 export async function loadCbz(arrayBuffer: ArrayBuffer): Promise<{

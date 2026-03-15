@@ -11,7 +11,10 @@ export async function saveComic() {
     const zip = new JSZip();
 
     for (const page of state.pages) {
-      if (!page.disabled) zip.file(page.filename, page.blob);
+      if (!page.disabled) {
+        const blob = page.blob ?? await fetch(page.url).then((r) => r.blob());
+        zip.file(page.filename, blob);
+      }
     }
 
     const arrayBuffer = await zip.generateAsync({ type: "arraybuffer" });

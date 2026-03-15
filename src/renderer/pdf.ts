@@ -65,7 +65,8 @@ export async function exportAsPdf() {
     const pdfDoc = await PDFDocument.create();
 
     for (const page of activePages) {
-      const arrayBuffer = await page.blob.arrayBuffer();
+      const blobData = page.blob ?? await fetch(page.url).then((r) => r.blob());
+      const arrayBuffer = await blobData.arrayBuffer();
       const bytes = new Uint8Array(arrayBuffer);
       const type = detectImageType(bytes);
 

@@ -1,7 +1,7 @@
 export type ComicPage = {
   filename: string;
   url: string;
-  blob: Blob;
+  blob: Blob | null;
   disabled: boolean;
   originalOrder: number;
 };

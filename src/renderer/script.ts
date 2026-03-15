@@ -131,7 +131,7 @@ async function openFolderFromPicker() {
     const response = await state.rpc.request.readFolder({ folderPath });
 
     if (response.success) {
-      const nextPages = await loadPagesFromBridgeFiles(response.files);
+      const nextPages = loadPagesFromBridgeFiles(response.files);
       if (!isActiveOpenRequest(requestId)) return;
 
       if (nextPages.length > 0) {
@@ -265,7 +265,7 @@ addPageBtn.addEventListener("click", async () => {
 
     setLoaderVisible(true);
     const startingIndex = state.pages.length;
-    const nextPages = await loadPagesFromBridgeFiles(
+    const nextPages = loadPagesFromBridgeFiles(
       result.filePaths.map((filePath) => ({ name: getFileName(filePath), path: filePath })),
       startingIndex
     );

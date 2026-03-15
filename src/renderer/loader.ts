@@ -53,7 +53,7 @@ export async function openComicFile(file: OpenableFile, filePath?: string) {
 
       if (!isActiveOpenRequest(requestId)) return;
 
-      const nextPages = await loadPagesFromBridgeFiles(response.files);
+      const nextPages = loadPagesFromBridgeFiles(response.files);
       if (!isActiveOpenRequest(requestId)) return;
 
       applyOpenedPages(nextPages, true);
@@ -101,7 +101,7 @@ export async function openComicFile(file: OpenableFile, filePath?: string) {
         throw new Error(response.error || "CBR extraction failed.");
       }
 
-      const nextPages = await loadPagesFromBridgeFiles(response.files);
+      const nextPages = loadPagesFromBridgeFiles(response.files);
       if (!isActiveOpenRequest(requestId)) return;
 
       applyOpenedPages(nextPages, true);
