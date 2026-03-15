@@ -51,6 +51,10 @@ export type RPCType = {
         params: { filePath: string };
         response: { success: boolean; error?: string; files: FileEntry[] };
       };
+      extractCBZ: {
+        params: { filePath: string };
+        response: { success: boolean; error?: string; files: FileEntry[] };
+      };
       readFolder: {
         params: { folderPath: string };
         response: { success: boolean; error?: string; files: FileEntry[] };

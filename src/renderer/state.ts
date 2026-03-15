@@ -12,9 +12,10 @@ export const state = {
   isFolderMode: false,
 
   isSpreadMode: false,
-  hstripPageElements: [] as HTMLImageElement[],
-  hstripPageOffsets: [] as number[],
-  hstripWindowStart: 0,
+  hstripWidths: [] as number[],
+  hstripLefts: [] as number[],
+  hstripTotalWidth: 0,
+  hstripElementMap: new Map() as Map<number, HTMLImageElement>,
   isScrollingProgrammatically: false,
   autoScrollInterval: null as number | null,
   draggedItemIndex: null as number | null,

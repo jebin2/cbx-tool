@@ -53,19 +53,21 @@ export function setupScrollHandler() {
 
     if (isHStrip) {
       // Find which page is currently centered in the viewport.
-      const offsets = state.hstripPageOffsets;
-      if (!offsets.length) return;
+      const lefts = state.hstripLefts;
+      if (!lefts.length) return;
       const centerX = activeViewerNode.scrollLeft + activeViewerNode.clientWidth / 2;
       let newIndex = state.selectedPageIndex;
-      for (let i = 0; i < offsets.length; i++) {
-        if (!state.pages[i]?.disabled && offsets[i] <= centerX) newIndex = i;
+      for (let i = 0; i < lefts.length; i++) {
+        if (!state.pages[i]?.disabled && lefts[i] <= centerX) newIndex = i;
       }
-      // Only lightweight work during scroll to keep it smooth.
-      // loadHStripWindow expands the window toward the edges as the user scrolls.
+      // Defer DOM mutations to the next rAF to avoid forced layout from
+      // reading scrollLeft after a DOM mutation in the same event handler.
       if (newIndex !== state.selectedPageIndex) {
         state.selectedPageIndex = newIndex;
-        loadHStripWindow(newIndex);
-        updateProgressBar();
+        requestAnimationFrame(() => {
+          loadHStripWindow(newIndex);
+          updateProgressBar();
+        });
       }
     } else if (isContinuous) {
       // Vertical page switching

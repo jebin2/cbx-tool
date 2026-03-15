@@ -11,6 +11,7 @@ type AddRecentFileParams = { name: string; filePath: string };
 type ShowSaveDialogParams = { defaultPath: string };
 type ShowOpenDialogParams = { canChooseDirectory?: boolean; allowMultiple?: boolean; allowedFileTypes?: string };
 type ExtractCBRParams = { filePath: string };
+type ExtractCBZParams = { filePath: string };
 type ExtractArchiveToFolderParams = {
   sourcePath: string;
   destinationPath: string;
@@ -249,6 +250,35 @@ const rpc = defineElectrobunRPC("bun", {
         }
       },
 
+      extractCBZ: async ({ filePath }: ExtractCBZParams) => {
+        console.log(`[Backend] Extracting CBZ: ${filePath}`);
+        try {
+          const JSZip = (await import("jszip")).default;
+          const fileBuffer = await Bun.file(filePath).arrayBuffer();
+          const zip = await JSZip.loadAsync(fileBuffer);
+
+          const tempDir = await mkdtemp(join(tmpdir(), "cbx-tool-"));
+          const imageExtensions = [".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"];
+          const images: { name: string; path: string }[] = [];
+
+          const entries = Object.entries(zip.files)
+            .filter(([name, f]) => !f.dir && imageExtensions.includes(extname(name).toLowerCase()))
+            .sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }));
+
+          for (const [name, file] of entries) {
+            const content = await file.async("uint8array");
+            const pagePath = join(tempDir, basename(name));
+            await Bun.write(pagePath, content);
+            images.push({ name: basename(name), path: pagePath });
+          }
+
+          return { success: true, files: images };
+        } catch (e) {
+          console.error("CBZ Extraction Error:", e);
+          return { success: false, error: (e as Error).message, files: [] };
+        }
+      },
+
       extractArchiveToFolder: async ({ sourcePath, destinationPath, type, filenames }: ExtractArchiveToFolderParams) => {
         console.log(`[Backend] extractArchiveToFolder: ${sourcePath} -> ${destinationPath} (${type})`);
 
@@ -335,3 +365,4 @@ const mainWindow = new BrowserWindow({
   url: "views://mainview/index.html",
   rpc,
 });
+

@@ -85,19 +85,73 @@ export function setSaveButtonMode(mode: "save" | "convert") {
 
 // ─── Horizontal strip mode ────────────────────────────────────────────────────
 
-const HSTRIP_BUFFER = 1; // extra pages preloaded beyond the viewport on each side
-const HSTRIP_GAP = 16;   // must match CSS gap on .preview-container.hstrip
+const HSTRIP_BUFFER = 2; // extra pages preloaded beyond the viewport on each side
+const HSTRIP_GAP = 16;   // gap between pages in pixels
+const HSTRIP_ASPECT = 2 / 3; // estimated width/height ratio for unloaded images
 
-/** Half the window size: half the pages that fit in the viewport, plus a 1-page buffer. */
+/** Number of pages that can fit in half the viewport plus buffer. */
 function hstripHalfWindow(): number {
   if (!viewerNode) return 3;
-  const estimatedPageWidth = viewerNode.clientHeight * (2 / 3);
+  const estimatedPageWidth = viewerNode.clientHeight * HSTRIP_ASPECT;
   const pagesPerView = Math.ceil(viewerNode.clientWidth / estimatedPageWidth);
-  // half = half the viewport + buffer, so total window ≈ pagesPerView + 2*BUFFER + 1
   return Math.ceil(pagesPerView / 2) + HSTRIP_BUFFER;
 }
 
-/** Build one img node for a given page index (no src set yet). */
+/**
+ * Recompute hstripLefts for all pages starting from `fromIndex`,
+ * and update the container width. Call after any width change.
+ */
+function recomputeHStripLeftsFrom(fromIndex: number) {
+  let x = fromIndex === 0 ? 0 : state.hstripLefts[fromIndex - 1] + state.hstripWidths[fromIndex - 1] + HSTRIP_GAP;
+  for (let i = fromIndex; i < state.pages.length; i++) {
+    state.hstripLefts[i] = x;
+    x += state.hstripWidths[i] + HSTRIP_GAP;
+  }
+  state.hstripTotalWidth = state.pages.length > 0 ? x - HSTRIP_GAP : 0;
+  if (previewContainer) previewContainer.style.width = state.hstripTotalWidth + "px";
+}
+
+/** Initialize width/left arrays for all pages with estimated sizes. */
+function initHStripLayout() {
+  const displayH = viewerNode ? viewerNode.clientHeight : window.innerHeight;
+  const estimatedW = Math.round(displayH * HSTRIP_ASPECT);
+  state.hstripWidths = state.pages.map(() => estimatedW);
+  state.hstripLefts = [];
+  recomputeHStripLeftsFrom(0);
+  if (previewContainer) previewContainer.style.height = displayH + "px";
+}
+
+/** Called when an image finishes loading — update width and reposition without any layout read. */
+function onHStripImageLoaded(pageIndex: number, img: HTMLImageElement) {
+  const displayH = viewerNode ? viewerNode.clientHeight : window.innerHeight;
+
+  const actualW = img.naturalHeight > 0
+    ? Math.round((img.naturalWidth / img.naturalHeight) * displayH)
+    : state.hstripWidths[pageIndex];
+  const delta = actualW - state.hstripWidths[pageIndex];
+  if (delta === 0) return;
+
+  state.hstripWidths[pageIndex] = actualW;
+  img.style.width = actualW + "px";
+
+  // Recompute left positions for all pages from this one onward.
+  recomputeHStripLeftsFrom(pageIndex);
+
+  // Update style.left for all DOM elements after this page.
+  for (const [idx, el] of state.hstripElementMap) {
+    if (idx > pageIndex) {
+      el.style.left = state.hstripLefts[idx] + "px";
+    }
+  }
+
+  // If this image is left of the current viewport, compensate scrollLeft
+  // so visible content doesn't jump — no layout read needed, we use our own state.
+  if (viewerNode && state.hstripLefts[pageIndex] < viewerNode.scrollLeft) {
+    viewerNode.scrollLeft += delta;
+  }
+}
+
+/** Build one img node for hstrip mode. */
 function makeHStripImg(pageIndex: number): HTMLImageElement {
   const page = state.pages[pageIndex];
   const img = document.createElement("img");
@@ -105,116 +159,44 @@ function makeHStripImg(pageIndex: number): HTMLImageElement {
   img.dataset.pageIndex = String(pageIndex);
   img.alt = `Page ${pageIndex + 1}`;
   if (page.disabled) img.dataset.disabled = "true";
-  // Pre-set estimated width so prepend scroll-compensation is accurate.
-  if (viewerNode) img.style.width = Math.round(viewerNode.clientHeight * 2 / 3) + "px";
-  img.addEventListener("load", () => {
-    const prevW = parseInt(img.style.width) || 0;
-    // Remove the estimated width so the browser computes the natural display
-    // width at the CSS-constrained height (height: calc(...), width: auto).
-    img.style.removeProperty("width");
-    const actualW = img.offsetWidth;
-    img.style.width = actualW + "px"; // lock actual rendered width
-    const delta = actualW - prevW;
-    // If this image is to the left of the current viewport, compensate scrollLeft
-    // so the visible content doesn't jump.
-    if (delta !== 0 && viewerNode && img.offsetLeft < viewerNode.scrollLeft) {
-      viewerNode.scrollLeft += delta;
-    }
-    cacheHStripOffsets();
-  });
+  img.style.left = state.hstripLefts[pageIndex] + "px";
+  img.style.width = state.hstripWidths[pageIndex] + "px";
+  img.addEventListener("load", () => onHStripImageLoaded(pageIndex, img));
   return img;
 }
 
-/** Cache offsetLeft for each element in the window, keyed by global page index. */
-export function cacheHStripOffsets() {
-  state.hstripPageOffsets = [];
-  state.hstripPageElements.forEach((img, j) => {
-    state.hstripPageOffsets[state.hstripWindowStart + j] = img.offsetLeft;
-  });
-}
-
 /**
- * Expand the loaded window so that [centerIndex - half, centerIndex + half] is
- * always covered.  Only the images in this range exist in the DOM; no
- * placeholder elements are created for pages outside the window.
+ * Ensure the virtual DOM window covers [centerIndex - half, centerIndex + half].
+ * With absolute positioning, adding/removing elements never affects scroll position.
  */
 export function loadHStripWindow(centerIndex: number) {
   const half = hstripHalfWindow();
   const targetLo = Math.max(0, centerIndex - half);
   const targetHi = Math.min(state.pages.length - 1, centerIndex + half);
 
-  // If the center jumped completely outside the current window, rebuild.
-  const currentEnd = state.hstripWindowStart + state.hstripPageElements.length - 1;
-  if (centerIndex < state.hstripWindowStart || centerIndex > currentEnd) {
-    rebuildHStripWindow(centerIndex);
-    return;
-  }
-
-  // Expand right; prune from left to keep window bounded.
-  while (state.hstripWindowStart + state.hstripPageElements.length - 1 < targetHi) {
-    const nextIdx = state.hstripWindowStart + state.hstripPageElements.length;
-    if (nextIdx >= state.pages.length) break;
-    const img = makeHStripImg(nextIdx);
-    if (!state.pages[nextIdx].disabled) img.src = state.pages[nextIdx].url;
-    previewContainer.appendChild(img);
-    state.hstripPageElements.push(img);
-
-    // Prune the leftmost element if it's behind the load window.
-    if (state.hstripWindowStart < targetLo) {
-      const removed = state.hstripPageElements.shift()!;
-      const removedWidth = removed.offsetWidth; // read before removing from DOM
-      removed.remove();
-      state.hstripWindowStart++;
-      // Shift scrollLeft left by the removed width so visible content stays put.
-      if (viewerNode) viewerNode.scrollLeft -= removedWidth + HSTRIP_GAP;
+  // Remove elements that have fallen outside the window.
+  for (const [idx, el] of state.hstripElementMap) {
+    if (idx < targetLo || idx > targetHi) {
+      el.remove();
+      state.hstripElementMap.delete(idx);
     }
   }
 
-  // Expand left — prepend and compensate scrollLeft so viewport content is stable;
-  // prune from the right to keep window bounded.
-  while (state.hstripWindowStart > targetLo) {
-    const prevIdx = state.hstripWindowStart - 1;
-    const img = makeHStripImg(prevIdx);
-    if (!state.pages[prevIdx].disabled) img.src = state.pages[prevIdx].url;
-    previewContainer.insertBefore(img, state.hstripPageElements[0]);
-    state.hstripPageElements.unshift(img);
-    state.hstripWindowStart--;
-    if (viewerNode) viewerNode.scrollLeft += img.offsetWidth + HSTRIP_GAP;
-
-    // Prune the rightmost element if it's beyond the load window.
-    const currentEnd = state.hstripWindowStart + state.hstripPageElements.length - 1;
-    if (currentEnd > targetHi) {
-      const removed = state.hstripPageElements.pop()!;
-      removed.remove();
+  // Add elements that are now inside the window.
+  for (let i = targetLo; i <= targetHi; i++) {
+    if (!state.hstripElementMap.has(i)) {
+      const img = makeHStripImg(i);
+      if (!state.pages[i].disabled) {
+        img.src = state.pages[i].url;
+        // Pre-decode the image asynchronously so WebKit doesn't decode it
+        // synchronously on the main thread the first time it enters the viewport,
+        // which is the primary cause of stutter during auto-scroll.
+        img.decode().catch(() => {});
+      }
+      previewContainer.appendChild(img);
+      state.hstripElementMap.set(i, img);
     }
   }
-
-  cacheHStripOffsets();
-}
-
-/** Tear down and rebuild the window centered on centerIndex. */
-function rebuildHStripWindow(centerIndex: number) {
-  state.hstripPageElements.forEach((img) => img.remove());
-  state.hstripPageElements = [];
-
-  const half = hstripHalfWindow();
-  const lo = Math.max(0, centerIndex - half);
-  const hi = Math.min(state.pages.length - 1, centerIndex + half);
-  state.hstripWindowStart = lo;
-
-  for (let i = lo; i <= hi; i++) {
-    const img = makeHStripImg(i);
-    if (!state.pages[i].disabled) img.src = state.pages[i].url;
-    previewContainer.appendChild(img);
-    state.hstripPageElements.push(img);
-  }
-
-  requestAnimationFrame(() => {
-    cacheHStripOffsets();
-    const offsetInWindow = centerIndex - state.hstripWindowStart;
-    const target = state.hstripPageElements[offsetInWindow];
-    if (viewerNode && target) viewerNode.scrollLeft = target.offsetLeft;
-  });
 }
 
 export function enterHStripMode() {
@@ -223,18 +205,27 @@ export function enterHStripMode() {
   spreadImage.style.display = "none";
   nextImage.style.display = "none";
 
-  state.hstripPageElements = [];
-  state.hstripWindowStart = 0;
+  state.hstripElementMap.clear();
+  initHStripLayout();
 
   const center = state.selectedPageIndex >= 0 ? state.selectedPageIndex : 0;
-  rebuildHStripWindow(center);
+  loadHStripWindow(center);
+
+  requestAnimationFrame(() => {
+    if (viewerNode) viewerNode.scrollLeft = state.hstripLefts[center] ?? 0;
+  });
 }
 
 export function exitHStripMode() {
-  state.hstripPageElements.forEach((img) => img.remove());
-  state.hstripPageElements = [];
-  state.hstripPageOffsets = [];
-  state.hstripWindowStart = 0;
+  for (const el of state.hstripElementMap.values()) el.remove();
+  state.hstripElementMap.clear();
+  state.hstripWidths = [];
+  state.hstripLefts = [];
+  state.hstripTotalWidth = 0;
+  if (previewContainer) {
+    previewContainer.style.width = "";
+    previewContainer.style.height = "";
+  }
   prevImage.style.display = "";
   currentImage.style.display = "";
   spreadImage.style.display = "";
@@ -314,15 +305,15 @@ export function updateProgressBar() {
   const activePageCount = state.pages.filter((page) => !page.disabled).length;
 
   if (!selectedPage || selectedPage.disabled || activePageCount === 0) {
-    progressBar.style.width = "0%";
+    progressBar.style.transform = "scaleX(0)";
     return;
   }
 
   const activePosition = state.pages
     .slice(0, state.selectedPageIndex + 1)
     .filter((page) => !page.disabled).length;
-  const progress = (activePosition / activePageCount) * 100;
-  progressBar.style.width = `${progress}%`;
+  const scale = activePosition / activePageCount;
+  progressBar.style.transform = `scaleX(${scale})`;
 }
 
 export function clearCopyButtonFeedback() {
@@ -650,7 +641,7 @@ export function selectPage(index: number, skipScrollBehavior = false) {
     if (viewerNode && !skipScrollBehavior) {
       state.isScrollingProgrammatically = true;
       requestAnimationFrame(() => {
-        viewerNode!.scrollLeft = state.hstripPageOffsets[targetIndex] ?? 0;
+        viewerNode!.scrollLeft = state.hstripLefts[targetIndex] ?? 0;
         setTimeout(() => { state.isScrollingProgrammatically = false; }, SCROLL_FLAG_RESET_DELAY_MS);
       });
     }

@@ -43,8 +43,25 @@ export async function openComicFile(file: OpenableFile, filePath?: string) {
         .then(() => loadRecentFiles());
     }
 
-    const arrayBuffer = await file.arrayBuffer();
     const ext = getFileExtension(file.name);
+
+    if (ext === ".cbz" && state.currentFilePath && state.rpc) {
+      const response = await state.rpc.request.extractCBZ({ filePath: state.currentFilePath });
+      if (!response.success) {
+        throw new Error(response.error || "CBZ extraction failed.");
+      }
+
+      if (!isActiveOpenRequest(requestId)) return;
+
+      const nextPages = await loadPagesFromBridgeFiles(response.files);
+      if (!isActiveOpenRequest(requestId)) return;
+
+      applyOpenedPages(nextPages, true);
+      setLoaderVisible(false);
+      return;
+    }
+
+    const arrayBuffer = await file.arrayBuffer();
 
     if (ext === ".cbz") {
       const { initialPages, loadRemainingPages } = await loadCbz(arrayBuffer);

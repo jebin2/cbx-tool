@@ -807,18 +807,21 @@ button:disabled {
 }
 
 .preview-container.hstrip {
-  flex-direction: row;
-  width: max-content;
+  position: relative;
   flex-shrink: 0;
-  align-items: center;
-  gap: 16px;
+  /* width and height set by JS */
 }
 
-.preview-container.hstrip .preview-image {
+.preview-container.hstrip .hstrip-page {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
   height: calc(100vh - 54px - 80px);
-  width: auto;
+  /* left and width set by JS */
   border-radius: var(--r-sm);
-  box-shadow: var(--s4), 0 0 40px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+  will-change: transform;
+  transition: none; /* disable opacity fade — prevents compositor churn during fast scroll */
 }
 
 
@@ -1097,11 +1100,13 @@ button:disabled {
 
 .progress-bar {
   height: 100%;
+  width: 100%;
   background: var(--accent);
-  width: 0%;
-  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transform: scaleX(0);
+  transform-origin: 0 50%;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: transform;
   box-shadow: 0 0 10px var(--accent-glow);
-  border-radius: 0 2px 2px 0;
 }
 
 /* ── Auto Scroll ───────────────────────────────────── */
