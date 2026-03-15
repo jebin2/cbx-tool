@@ -11,6 +11,7 @@ import {
   pdfBtn,
   fileInput,
   fitToggleBtn,
+  hStripBtn,
   spreadBtn,
   homeBtn,
   landingContainer,
@@ -33,6 +34,8 @@ import { disposePages, loadPagesFromBridgeFiles } from "./pages.ts";
 import {
   applyOpenedPages,
   appendPageItems,
+  enterHStripMode,
+  exitHStripMode,
   renderPageList,
   selectPage,
   setLoaderVisible,
@@ -306,8 +309,12 @@ autoScrollBtn.addEventListener("click", () => {
 });
 
 fitToggleBtn.addEventListener("click", () => {
+  exitHStripMode();
   state.isSpreadMode = false;
+  hStripBtn.classList.remove("active");
   spreadBtn.classList.remove("active");
+  previewContainer.classList.remove("hstrip");
+  viewerNode?.classList.remove("hstrip-mode");
 
   if (previewContainer.classList.contains("fit-width")) {
     previewContainer.classList.remove("fit-width");
@@ -332,11 +339,26 @@ fitToggleBtn.addEventListener("click", () => {
   }
 });
 
+hStripBtn.addEventListener("click", () => {
+  exitHStripMode();
+  state.isSpreadMode = false;
+  spreadBtn.classList.remove("active");
+  previewContainer.classList.remove("fit-width", "fit-height", "spread");
+  previewContainer.classList.add("hstrip");
+  viewerNode?.classList.add("hstrip-mode");
+  hStripBtn.classList.add("active");
+  stopAutoScroll();
+  enterHStripMode();
+});
+
 spreadBtn.addEventListener("click", () => {
+  exitHStripMode();
   state.isSpreadMode = true;
   stopAutoScroll();
-  previewContainer.classList.remove("fit-width", "fit-height");
+  hStripBtn.classList.remove("active");
+  previewContainer.classList.remove("fit-width", "fit-height", "hstrip");
   previewContainer.classList.add("spread");
+  viewerNode?.classList.remove("hstrip-mode");
   spreadBtn.classList.add("active");
 
   if (state.selectedPageIndex !== -1) {

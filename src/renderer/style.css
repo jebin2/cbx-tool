@@ -798,6 +798,34 @@ button:disabled {
   display: none;
 }
 
+/* ── Horizontal Strip mode ─────────────────────────── */
+.viewer.hstrip-mode {
+  overflow-x: auto;
+  overflow-y: hidden;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.preview-container.hstrip {
+  flex-direction: row;
+  width: max-content;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 16px;
+}
+
+.preview-container.hstrip .preview-image {
+  height: calc(100vh - 54px - 80px);
+  width: auto;
+  border-radius: var(--r-sm);
+  box-shadow: var(--s4), 0 0 40px rgba(0, 0, 0, 0.5);
+}
+
+
+.preview-container.hstrip #spreadImage {
+  display: none;
+}
+
 /* Spread (double-page) layout */
 .preview-container.spread {
   flex-direction: row;

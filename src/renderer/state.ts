@@ -12,6 +12,9 @@ export const state = {
   isFolderMode: false,
 
   isSpreadMode: false,
+  hstripPageElements: [] as HTMLImageElement[],
+  hstripPageOffsets: [] as number[],
+  hstripWindowStart: 0,
   isScrollingProgrammatically: false,
   autoScrollInterval: null as number | null,
   draggedItemIndex: null as number | null,

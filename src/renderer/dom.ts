@@ -28,6 +28,7 @@ export const autoScrollSpeedInput = document.getElementById("autoScrollSpeed") a
 export const addPageBtn = document.getElementById("addPageBtn") as HTMLButtonElement;
 export const resetOrderBtn = document.getElementById("resetOrderBtn") as HTMLButtonElement;
 export const fitToggleBtn = document.getElementById("fitToggleBtn") as HTMLButtonElement;
+export const hStripBtn = document.getElementById("hStripBtn") as HTMLButtonElement;
 export const spreadBtn = document.getElementById("spreadBtn") as HTMLButtonElement;
 export const spreadImage = document.getElementById("spreadImage") as HTMLImageElement;
 export const clearRecentBtn = document.getElementById("clearRecentBtn") as HTMLButtonElement | null;

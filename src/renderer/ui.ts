@@ -15,6 +15,7 @@ import {
   extractBtn,
   pdfBtn,
   fitToggleBtn,
+  hStripBtn,
   spreadBtn,
   spreadImage,
   landingContainer,
@@ -82,17 +83,178 @@ export function setSaveButtonMode(mode: "save" | "convert") {
       `;
 }
 
+// ─── Horizontal strip mode ────────────────────────────────────────────────────
+
+const HSTRIP_BUFFER = 1; // extra pages preloaded beyond the viewport on each side
+const HSTRIP_GAP = 16;   // must match CSS gap on .preview-container.hstrip
+
+/** Half the window size: half the pages that fit in the viewport, plus a 1-page buffer. */
+function hstripHalfWindow(): number {
+  if (!viewerNode) return 3;
+  const estimatedPageWidth = viewerNode.clientHeight * (2 / 3);
+  const pagesPerView = Math.ceil(viewerNode.clientWidth / estimatedPageWidth);
+  // half = half the viewport + buffer, so total window ≈ pagesPerView + 2*BUFFER + 1
+  return Math.ceil(pagesPerView / 2) + HSTRIP_BUFFER;
+}
+
+/** Build one img node for a given page index (no src set yet). */
+function makeHStripImg(pageIndex: number): HTMLImageElement {
+  const page = state.pages[pageIndex];
+  const img = document.createElement("img");
+  img.className = "preview-image hstrip-page";
+  img.dataset.pageIndex = String(pageIndex);
+  img.alt = `Page ${pageIndex + 1}`;
+  if (page.disabled) img.dataset.disabled = "true";
+  // Pre-set estimated width so prepend scroll-compensation is accurate.
+  if (viewerNode) img.style.width = Math.round(viewerNode.clientHeight * 2 / 3) + "px";
+  img.addEventListener("load", () => {
+    const prevW = parseInt(img.style.width) || 0;
+    // Remove the estimated width so the browser computes the natural display
+    // width at the CSS-constrained height (height: calc(...), width: auto).
+    img.style.removeProperty("width");
+    const actualW = img.offsetWidth;
+    img.style.width = actualW + "px"; // lock actual rendered width
+    const delta = actualW - prevW;
+    // If this image is to the left of the current viewport, compensate scrollLeft
+    // so the visible content doesn't jump.
+    if (delta !== 0 && viewerNode && img.offsetLeft < viewerNode.scrollLeft) {
+      viewerNode.scrollLeft += delta;
+    }
+    cacheHStripOffsets();
+  });
+  return img;
+}
+
+/** Cache offsetLeft for each element in the window, keyed by global page index. */
+export function cacheHStripOffsets() {
+  state.hstripPageOffsets = [];
+  state.hstripPageElements.forEach((img, j) => {
+    state.hstripPageOffsets[state.hstripWindowStart + j] = img.offsetLeft;
+  });
+}
+
+/**
+ * Expand the loaded window so that [centerIndex - half, centerIndex + half] is
+ * always covered.  Only the images in this range exist in the DOM; no
+ * placeholder elements are created for pages outside the window.
+ */
+export function loadHStripWindow(centerIndex: number) {
+  const half = hstripHalfWindow();
+  const targetLo = Math.max(0, centerIndex - half);
+  const targetHi = Math.min(state.pages.length - 1, centerIndex + half);
+
+  // If the center jumped completely outside the current window, rebuild.
+  const currentEnd = state.hstripWindowStart + state.hstripPageElements.length - 1;
+  if (centerIndex < state.hstripWindowStart || centerIndex > currentEnd) {
+    rebuildHStripWindow(centerIndex);
+    return;
+  }
+
+  // Expand right; prune from left to keep window bounded.
+  while (state.hstripWindowStart + state.hstripPageElements.length - 1 < targetHi) {
+    const nextIdx = state.hstripWindowStart + state.hstripPageElements.length;
+    if (nextIdx >= state.pages.length) break;
+    const img = makeHStripImg(nextIdx);
+    if (!state.pages[nextIdx].disabled) img.src = state.pages[nextIdx].url;
+    previewContainer.appendChild(img);
+    state.hstripPageElements.push(img);
+
+    // Prune the leftmost element if it's behind the load window.
+    if (state.hstripWindowStart < targetLo) {
+      const removed = state.hstripPageElements.shift()!;
+      const removedWidth = removed.offsetWidth; // read before removing from DOM
+      removed.remove();
+      state.hstripWindowStart++;
+      // Shift scrollLeft left by the removed width so visible content stays put.
+      if (viewerNode) viewerNode.scrollLeft -= removedWidth + HSTRIP_GAP;
+    }
+  }
+
+  // Expand left — prepend and compensate scrollLeft so viewport content is stable;
+  // prune from the right to keep window bounded.
+  while (state.hstripWindowStart > targetLo) {
+    const prevIdx = state.hstripWindowStart - 1;
+    const img = makeHStripImg(prevIdx);
+    if (!state.pages[prevIdx].disabled) img.src = state.pages[prevIdx].url;
+    previewContainer.insertBefore(img, state.hstripPageElements[0]);
+    state.hstripPageElements.unshift(img);
+    state.hstripWindowStart--;
+    if (viewerNode) viewerNode.scrollLeft += img.offsetWidth + HSTRIP_GAP;
+
+    // Prune the rightmost element if it's beyond the load window.
+    const currentEnd = state.hstripWindowStart + state.hstripPageElements.length - 1;
+    if (currentEnd > targetHi) {
+      const removed = state.hstripPageElements.pop()!;
+      removed.remove();
+    }
+  }
+
+  cacheHStripOffsets();
+}
+
+/** Tear down and rebuild the window centered on centerIndex. */
+function rebuildHStripWindow(centerIndex: number) {
+  state.hstripPageElements.forEach((img) => img.remove());
+  state.hstripPageElements = [];
+
+  const half = hstripHalfWindow();
+  const lo = Math.max(0, centerIndex - half);
+  const hi = Math.min(state.pages.length - 1, centerIndex + half);
+  state.hstripWindowStart = lo;
+
+  for (let i = lo; i <= hi; i++) {
+    const img = makeHStripImg(i);
+    if (!state.pages[i].disabled) img.src = state.pages[i].url;
+    previewContainer.appendChild(img);
+    state.hstripPageElements.push(img);
+  }
+
+  requestAnimationFrame(() => {
+    cacheHStripOffsets();
+    const offsetInWindow = centerIndex - state.hstripWindowStart;
+    const target = state.hstripPageElements[offsetInWindow];
+    if (viewerNode && target) viewerNode.scrollLeft = target.offsetLeft;
+  });
+}
+
+export function enterHStripMode() {
+  prevImage.style.display = "none";
+  currentImage.style.display = "none";
+  spreadImage.style.display = "none";
+  nextImage.style.display = "none";
+
+  state.hstripPageElements = [];
+  state.hstripWindowStart = 0;
+
+  const center = state.selectedPageIndex >= 0 ? state.selectedPageIndex : 0;
+  rebuildHStripWindow(center);
+}
+
+export function exitHStripMode() {
+  state.hstripPageElements.forEach((img) => img.remove());
+  state.hstripPageElements = [];
+  state.hstripPageOffsets = [];
+  state.hstripWindowStart = 0;
+  prevImage.style.display = "";
+  currentImage.style.display = "";
+  spreadImage.style.display = "";
+  nextImage.style.display = "";
+}
+
 export function showViewer(canExtract: boolean) {
+  exitHStripMode();
   landingContainer.classList.add("hidden");
   recentFilesContainer.classList.add("hidden");
   dropZone.classList.add("hidden");
   progressBarContainer.classList.remove("hidden");
   previewContainer.classList.remove("hidden");
-  previewContainer.classList.remove("fit-width", "spread");
+  previewContainer.classList.remove("fit-width", "spread", "hstrip");
   previewContainer.classList.add("fit-height");
   setFitToggleToFitWidth();
+  hStripBtn.classList.remove("active");
   spreadBtn.classList.remove("active");
   state.isSpreadMode = false;
+  viewerNode?.classList.remove("hstrip-mode");
   viewerNode?.classList.add("has-content");
   sidebar?.classList.remove("hidden");
   toolbar?.classList.remove("hidden");
@@ -102,6 +264,7 @@ export function showViewer(canExtract: boolean) {
 }
 
 export function showLandingPage() {
+  exitHStripMode();
   replacePages([]);
   state.currentFileName = "";
   state.currentFilePath = null;
@@ -113,10 +276,12 @@ export function showLandingPage() {
   progressBar.style.width = "0%";
   progressBarContainer.classList.add("hidden");
   previewContainer.classList.add("hidden");
-  previewContainer.classList.remove("fit-width", "fit-height", "spread");
+  previewContainer.classList.remove("fit-width", "fit-height", "spread", "hstrip");
   setFitToggleToFitWidth();
+  hStripBtn.classList.remove("active");
   spreadBtn.classList.remove("active");
   state.isSpreadMode = false;
+  viewerNode?.classList.remove("hstrip-mode");
   sidebar?.classList.add("hidden");
   toolbar?.classList.add("hidden");
   landingContainer.classList.remove("hidden");
@@ -478,30 +643,42 @@ export function selectPage(index: number, skipScrollBehavior = false) {
 
   state.selectedPageIndex = targetIndex;
 
-  prevImage.removeAttribute("src");
-  currentImage.removeAttribute("src");
-  spreadImage.removeAttribute("src");
-  nextImage.removeAttribute("src");
+  const isHStrip = previewContainer.classList.contains("hstrip");
 
-  if (state.isSpreadMode) {
-    currentImage.src = state.pages[targetIndex].url;
-    const spreadIndex = findEnabledPageIndex(targetIndex, 1);
-    if (spreadIndex !== -1) spreadImage.src = state.pages[spreadIndex].url;
+  if (isHStrip) {
+    loadHStripWindow(targetIndex);
+    if (viewerNode && !skipScrollBehavior) {
+      state.isScrollingProgrammatically = true;
+      requestAnimationFrame(() => {
+        viewerNode!.scrollLeft = state.hstripPageOffsets[targetIndex] ?? 0;
+        setTimeout(() => { state.isScrollingProgrammatically = false; }, SCROLL_FLAG_RESET_DELAY_MS);
+      });
+    }
   } else {
-    const prevIndex = findEnabledPageIndex(targetIndex, -1);
-    const nextIndex = findEnabledPageIndex(targetIndex, 1);
-    if (prevIndex !== -1) prevImage.src = state.pages[prevIndex].url;
-    currentImage.src = state.pages[targetIndex].url;
-    if (nextIndex !== -1) nextImage.src = state.pages[nextIndex].url;
-  }
+    prevImage.removeAttribute("src");
+    currentImage.removeAttribute("src");
+    spreadImage.removeAttribute("src");
+    nextImage.removeAttribute("src");
 
-  if (viewerNode && !skipScrollBehavior && !state.isSpreadMode) {
-    const activeViewerNode = viewerNode;
-    state.isScrollingProgrammatically = true;
-    requestAnimationFrame(() => {
-      activeViewerNode.scrollTo({ top: currentImage.offsetTop, behavior: "instant" });
-      setTimeout(() => { state.isScrollingProgrammatically = false; }, SCROLL_FLAG_RESET_DELAY_MS);
-    });
+    if (state.isSpreadMode) {
+      currentImage.src = state.pages[targetIndex].url;
+      const spreadIndex = findEnabledPageIndex(targetIndex, 1);
+      if (spreadIndex !== -1) spreadImage.src = state.pages[spreadIndex].url;
+    } else {
+      const prevIndex = findEnabledPageIndex(targetIndex, -1);
+      const nextIndex = findEnabledPageIndex(targetIndex, 1);
+      if (prevIndex !== -1) prevImage.src = state.pages[prevIndex].url;
+      currentImage.src = state.pages[targetIndex].url;
+      if (nextIndex !== -1) nextImage.src = state.pages[nextIndex].url;
+    }
+
+    if (viewerNode && !skipScrollBehavior && !state.isSpreadMode) {
+      state.isScrollingProgrammatically = true;
+      requestAnimationFrame(() => {
+        viewerNode!.scrollTo({ top: currentImage.offsetTop, behavior: "instant" });
+        setTimeout(() => { state.isScrollingProgrammatically = false; }, SCROLL_FLAG_RESET_DELAY_MS);
+      });
+    }
   }
 
   document.querySelectorAll(".page-item").forEach((item, i) => {
