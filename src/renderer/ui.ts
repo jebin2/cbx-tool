@@ -85,6 +85,8 @@ export function setSaveButtonMode(mode: "save" | "convert") {
 
 // ─── Horizontal strip mode ────────────────────────────────────────────────────
 
+let hstripGeneration = 0; // incremented on every reinit to invalidate stale load events
+
 const HSTRIP_BUFFER = 2; // extra pages preloaded beyond the viewport on each side
 const HSTRIP_GAP = 16;   // gap between pages in pixels
 const HSTRIP_ASPECT = 2 / 3; // estimated width/height ratio for unloaded images
@@ -161,7 +163,10 @@ function makeHStripImg(pageIndex: number): HTMLImageElement {
   if (page.disabled) img.dataset.disabled = "true";
   img.style.left = state.hstripLefts[pageIndex] + "px";
   img.style.width = state.hstripWidths[pageIndex] + "px";
-  img.addEventListener("load", () => onHStripImageLoaded(pageIndex, img));
+  const gen = hstripGeneration;
+  img.addEventListener("load", () => {
+    if (gen === hstripGeneration) onHStripImageLoaded(pageIndex, img);
+  });
   return img;
 }
 
@@ -205,6 +210,7 @@ export function enterHStripMode() {
   spreadImage.style.display = "none";
   nextImage.style.display = "none";
 
+  hstripGeneration++;
   state.hstripElementMap.clear();
   initHStripLayout();
 
@@ -217,7 +223,8 @@ export function enterHStripMode() {
 }
 
 export function exitHStripMode() {
-  for (const el of state.hstripElementMap.values()) el.remove();
+  hstripGeneration++;
+  for (const el of state.hstripElementMap.values()) { (el as HTMLImageElement).src = ""; el.remove(); }
   state.hstripElementMap.clear();
   state.hstripWidths = [];
   state.hstripLefts = [];
@@ -233,6 +240,8 @@ export function exitHStripMode() {
 }
 
 // ─── Vertical strip mode ─────────────────────────────────────────────────────
+
+let vstripGeneration = 0; // incremented on every reinit to invalidate stale load events
 
 const VSTRIP_GAP = 32;
 const VSTRIP_ASPECT = 1.5; // estimated portrait page height/width ratio (h/w)
@@ -253,8 +262,9 @@ function vstripHalfWindow(): number {
 
 function vstripEstimatedHeight(): number {
   if (!viewerNode) return 800;
-  if (vstripMode() === "fit-height") return viewerNode.clientHeight - 80;
-  return Math.round(viewerNode.clientWidth * VSTRIP_ASPECT);
+  return vstripMode() === "fit-height"
+    ? viewerNode.clientHeight - 80
+    : Math.round(viewerNode.clientWidth * VSTRIP_ASPECT);
 }
 
 function recomputeVStripTopsFrom(fromIndex: number) {
@@ -309,10 +319,11 @@ function makeVStripImg(pageIndex: number): HTMLImageElement {
   img.alt = `Page ${pageIndex + 1}`;
   if (page.disabled) img.dataset.disabled = "true";
   img.style.top = state.vstripTops[pageIndex] + "px";
-  if (vstripMode() === "fit-width") {
-    img.style.height = state.vstripHeights[pageIndex] + "px";
-  }
-  img.addEventListener("load", () => onVStripImageLoaded(pageIndex, img));
+  img.style.height = state.vstripHeights[pageIndex] + "px";
+  const gen = vstripGeneration;
+  img.addEventListener("load", () => {
+    if (gen === vstripGeneration) onVStripImageLoaded(pageIndex, img);
+  });
   return img;
 }
 
@@ -347,6 +358,7 @@ export function enterVStripMode() {
   spreadImage.style.display = "none";
   nextImage.style.display = "none";
 
+  vstripGeneration++;
   state.vstripElementMap.clear();
   initVStripLayout();
 
@@ -359,13 +371,15 @@ export function enterVStripMode() {
 }
 
 export function exitVStripMode() {
-  for (const el of state.vstripElementMap.values()) el.remove();
+  vstripGeneration++;
+  for (const el of state.vstripElementMap.values()) { (el as HTMLImageElement).src = ""; el.remove(); }
   state.vstripElementMap.clear();
   state.vstripTops = [];
   state.vstripHeights = [];
   state.vstripTotalHeight = 0;
   if (previewContainer) {
     previewContainer.style.height = "";
+    previewContainer.style.width = "";
   }
   prevImage.style.display = "";
   currentImage.style.display = "";
@@ -377,7 +391,8 @@ export function reinitVStrip() {
   if (!previewContainer.classList.contains("vstrip")) return;
   const center = state.selectedPageIndex >= 0 ? state.selectedPageIndex : 0;
 
-  for (const el of state.vstripElementMap.values()) el.remove();
+  vstripGeneration++;
+  for (const el of state.vstripElementMap.values()) { (el as HTMLImageElement).src = ""; el.remove(); }
   state.vstripElementMap.clear();
 
   initVStripLayout();
@@ -438,7 +453,6 @@ export function showLandingPage() {
   dropZone.classList.remove("hidden");
   recentFilesContainer.classList.remove("hidden");
   viewerNode?.classList.remove("has-content");
-
   prevImage.removeAttribute("src");
   currentImage.removeAttribute("src");
   nextImage.removeAttribute("src");
