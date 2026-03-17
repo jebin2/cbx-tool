@@ -93,7 +93,11 @@ const server = Bun.serve({
     if (!filePath) return new Response("Missing path", { status: 400, headers });
 
     if (req.method === "GET") {
-      return new Response(Bun.file(filePath), { headers });
+      const bunFile = Bun.file(filePath);
+      if (!(await bunFile.exists())) {
+        return new Response("File not found", { status: 404, headers });
+      }
+      return new Response(bunFile, { headers });
     } else if (req.method === "POST") {
       try {
         const arrayBuffer = await req.arrayBuffer();

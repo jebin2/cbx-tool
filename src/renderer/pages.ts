@@ -69,13 +69,19 @@ export async function loadCbz(arrayBuffer: ArrayBuffer): Promise<{
         return [];
       }
 
-      const restBlobs = await Promise.all(
-        imageFiles.slice(1).map((filename) => zip.files[filename].async("blob"))
-      );
+      const remaining = imageFiles.slice(1);
+      const pages: ComicPage[] = [];
+      const BATCH_SIZE = 20;
 
-      return imageFiles.slice(1).map((filename, index) =>
-        createPage(filename, restBlobs[index], index + 1)
-      );
+      for (let i = 0; i < remaining.length; i += BATCH_SIZE) {
+        const batch = remaining.slice(i, i + BATCH_SIZE);
+        const blobs = await Promise.all(batch.map((filename) => zip.files[filename].async("blob")));
+        for (let j = 0; j < batch.length; j++) {
+          pages.push(createPage(batch[j], blobs[j], i + j + 1));
+        }
+      }
+
+      return pages;
     },
   };
 }

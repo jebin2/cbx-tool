@@ -113,6 +113,10 @@ export async function openComicFile(file: OpenableFile, filePath?: string) {
   } catch (error) {
     console.error("Error opening file:", error);
     setLoaderVisible(false);
+    if (state.pages.length === 0) {
+      dropZone.classList.remove("hidden");
+      recentFilesContainer.classList.remove("hidden");
+    }
     await showMessageModal({
       title: "Open Failed",
       message: "Error opening file: " + (error as Error).message,
@@ -133,9 +137,11 @@ export async function openKnownFile(filePath: string, fileName: string) {
   } catch (error) {
     console.error("Failed to open recent file:", error);
     setLoaderVisible(false);
+    dropZone.classList.remove("hidden");
+    recentFilesContainer.classList.remove("hidden");
     await showMessageModal({
-      title: "Open Failed",
-      message: "Could not open file.",
+      title: "File Not Found",
+      message: "The file could not be opened. It may have been deleted or moved.",
     });
   }
 }
