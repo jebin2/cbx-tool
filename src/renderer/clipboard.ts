@@ -6,12 +6,15 @@ import { clearCopyButtonFeedback, setCopyButtonFeedback, updateCopyButtonState }
 import { waitForUiTick } from "./utils.ts";
 
 function loadImageForClipboard(src: string): Promise<HTMLImageElement> {
-  if (currentImage.src === src && currentImage.complete && currentImage.naturalWidth > 0) {
+  // Only reuse currentImage for blob URLs (same-origin). Bridge URLs (http://) require
+  // crossOrigin="anonymous" to avoid tainting the canvas, so always create a fresh element.
+  if (!src.startsWith("http") && currentImage.src === src && currentImage.complete && currentImage.naturalWidth > 0) {
     return Promise.resolve(currentImage);
   }
 
   return new Promise((resolve, reject) => {
     const img = new Image();
+    img.crossOrigin = "anonymous";
     img.decoding = "async";
     img.onload = () => resolve(img);
     img.onerror = () => reject(new Error("Could not load the page image for clipboard copy."));
