@@ -1,4 +1,4 @@
-import Electrobun, { BrowserWindow, defineElectrobunRPC } from "electrobun/bun";
+import Electrobun, { BrowserWindow, defineElectrobunRPC, Screen } from "electrobun/bun";
 import { randomBytes } from "crypto";
 import { mkdir, mkdtemp, readdir, stat, unlink } from "fs/promises";
 import { basename, extname, join } from "path";
@@ -362,9 +362,9 @@ const rpc = defineElectrobunRPC("bun", {
   }
 });
 
+const { x, y, width, height } = Screen.getPrimaryDisplay().workArea;
 const mainWindow = new BrowserWindow({
-  width: 1200,
-  height: 800,
+  frame: { x, y, width, height },
   title: "CBX Tool",
   url: "views://mainview/index.html",
   rpc,
