@@ -191,16 +191,28 @@ export function loadHStripWindow(centerIndex: number) {
   for (let i = targetLo; i <= targetHi; i++) {
     if (!state.hstripElementMap.has(i)) {
       const img = makeHStripImg(i);
-      if (!state.pages[i].disabled) {
-        img.src = state.pages[i].url;
-        // Pre-decode the image asynchronously so WebKit doesn't decode it
-        // synchronously on the main thread the first time it enters the viewport,
-        // which is the primary cause of stutter during auto-scroll.
-        img.decode().catch(() => {});
-      }
       previewContainer.appendChild(img);
       state.hstripElementMap.set(i, img);
     }
+    const el = state.hstripElementMap.get(i)!;
+    if (state.pages[i].disabled) {
+      el.src = "";
+      el.dataset.disabled = "true";
+    } else {
+      delete el.dataset.disabled;
+      if (!el.src || el.src !== state.pages[i].url) {
+        el.src = state.pages[i].url;
+        el.decode().catch(() => {});
+      }
+    }
+  }
+
+  if (!state.hstripElementMap.has(centerIndex) && centerIndex >= 0 && centerIndex < state.pages.length && !state.pages[centerIndex].disabled) {
+    const img = makeHStripImg(centerIndex);
+    img.src = state.pages[centerIndex].url;
+    img.decode().catch(() => {});
+    previewContainer.appendChild(img);
+    state.hstripElementMap.set(centerIndex, img);
   }
 }
 
@@ -342,13 +354,28 @@ export function loadVStripWindow(centerIndex: number) {
   for (let i = targetLo; i <= targetHi; i++) {
     if (!state.vstripElementMap.has(i)) {
       const img = makeVStripImg(i);
-      if (!state.pages[i].disabled) {
-        img.src = state.pages[i].url;
-        img.decode().catch(() => {});
-      }
       previewContainer.appendChild(img);
       state.vstripElementMap.set(i, img);
     }
+    const el = state.vstripElementMap.get(i)!;
+    if (state.pages[i].disabled) {
+      el.src = "";
+      el.dataset.disabled = "true";
+    } else {
+      delete el.dataset.disabled;
+      if (!el.src || el.src !== state.pages[i].url) {
+        el.src = state.pages[i].url;
+        el.decode().catch(() => {});
+      }
+    }
+  }
+
+  if (!state.vstripElementMap.has(centerIndex) && centerIndex >= 0 && centerIndex < state.pages.length && !state.pages[centerIndex].disabled) {
+    const img = makeVStripImg(centerIndex);
+    img.src = state.pages[centerIndex].url;
+    img.decode().catch(() => {});
+    previewContainer.appendChild(img);
+    state.vstripElementMap.set(centerIndex, img);
   }
 }
 
@@ -921,7 +948,7 @@ export function togglePage(index: number) {
   updatePageCount();
 
   if (state.pages[index].disabled && state.selectedPageIndex === index) {
-    selectPage(index, true);
+    selectPage(index, false);
     return;
   }
 
