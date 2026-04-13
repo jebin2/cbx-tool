@@ -1,6 +1,6 @@
 # Changelog
 
-## [1.1.4] - 2026-04-13
+## [v1.1.4] - 2026-04-13
 
 ### Fixed
 - **Viewer not updating when toggling pages**: When disabling a page with Delete key, the viewer now properly scrolls to show the newly selected page instead of showing a blank screen
