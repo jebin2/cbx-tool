@@ -16,7 +16,7 @@ jobs:
         with:
           bun-version: latest
       - run: bun install
-      - run: bunx electrobun build --env=stable
+      - run: bun run build
       - name: List artifacts
         run: ls -la artifacts/
       - name: Wrap installer with setup script
@@ -45,7 +45,7 @@ jobs:
         with:
           bun-version: latest
       - run: bun install
-      - run: bunx electrobun build --env=stable
+      - run: bun run build
       - name: List artifacts
         run: ls -la artifacts/ && find build/ -type f
       - name: Create DMG
@@ -73,7 +73,7 @@ jobs:
         with:
           bun-version: latest
       - run: bun install
-      - run: bunx electrobun build --env=stable
+      - run: bun run build
       - name: List artifacts
         shell: pwsh
         run: Get-ChildItem artifacts/ -Recurse

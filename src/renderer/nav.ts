@@ -1,4 +1,4 @@
-import { autoScrollBtn, autoScrollGroup, autoScrollSpeedInput, previewContainer, viewerNode } from "./dom.ts";
+import { appModal, autoScrollBtn, autoScrollGroup, autoScrollSpeedInput, pageList, previewContainer, viewerNode } from "./dom.ts";
 import { state } from "./state.ts";
 import { loadHStripWindow, loadVStripWindow, selectNextPage, selectPreviousPage, selectPage, togglePage, updateProgressBar } from "./ui.ts";
 
@@ -31,6 +31,12 @@ export function startAutoScroll() {
   }
 
   state.autoScrollInterval = requestAnimationFrame(scrollStep);
+}
+
+function updateSidebarHighlight(targetIndex: number) {
+  document.querySelectorAll(".page-item").forEach((item, i) => {
+    item.classList.toggle("selected", i === targetIndex);
+  });
 }
 
 export function setupScrollHandler() {
@@ -66,6 +72,7 @@ export function setupScrollHandler() {
         requestAnimationFrame(() => {
           loadHStripWindow(newIndex);
           updateProgressBar();
+          updateSidebarHighlight(newIndex);
         });
       }
     } else if (isVStrip) {
@@ -81,6 +88,7 @@ export function setupScrollHandler() {
         requestAnimationFrame(() => {
           loadVStripWindow(newIndex);
           updateProgressBar();
+          updateSidebarHighlight(newIndex);
         });
       }
     }
@@ -89,7 +97,7 @@ export function setupScrollHandler() {
 
 export function setupKeyboardHandler() {
   document.addEventListener("keydown", (e) => {
-    if (!state.pages.length) return;
+    if (!state.pages.length || !appModal.classList.contains("hidden")) return;
     const isVStrip = previewContainer.classList.contains("vstrip");
     const isHStrip = previewContainer.classList.contains("hstrip");
 

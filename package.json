@@ -9,9 +9,7 @@
     "pdf-lib": "^1.17.1"
   },
   "scripts": {
-    "start": "electrobun dev",
-    "build": "electrobun build",
-    "build:stable": "electrobun build --env=stable",
-    "release": "bun run build:stable"
+    "dev": "electrobun dev --watch",
+    "build": "electrobun build --env=stable"
   }
 }
