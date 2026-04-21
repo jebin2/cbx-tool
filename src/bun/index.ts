@@ -2,7 +2,8 @@ import Electrobun, { BrowserWindow, defineElectrobunRPC, Screen } from "electrob
 import { randomBytes } from "crypto";
 import { mkdir, mkdtemp, readdir, stat, unlink } from "fs/promises";
 import { basename, extname, join } from "path";
-import { homedir, tmpdir } from "os";
+import { homedir, tmpdir, platform } from "os";
+const IS_WIN = platform() === "win32";
 
 type RecentFileEntry = { name: string; path: string };
 
@@ -204,13 +205,15 @@ const rpc = defineElectrobunRPC("bun", {
           fileTypes = canChooseDirectory ? "" : "*.cbz,*.cbr";
         }
 
-        const filePaths = await Electrobun.Utils.openFileDialog({
+        const dialogOptions: any = {
           startingFolder: downloadsDir,
-          allowedFileTypes: fileTypes,
           canChooseFiles: !canChooseDirectory,
           canChooseDirectory: canChooseDirectory,
           allowsMultipleSelection: allowMultiple
-        });
+        };
+        if (!IS_WIN) dialogOptions.allowedFileTypes = fileTypes;
+
+        const filePaths = await Electrobun.Utils.openFileDialog(dialogOptions);
 
         console.log(`[Backend] openFileDialog result:`, filePaths);
         const canceled = !filePaths || filePaths.length === 0 || (filePaths.length === 1 && filePaths[0] === "");
