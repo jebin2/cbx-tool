@@ -7,6 +7,7 @@ import {
   recentFilesList,
 } from "./dom.ts";
 import { getFileExtension, getFileName, waitForUiTick } from "./utils.ts";
+import { IMAGE_EXTENSIONS } from "./constants.ts";
 import { fetchBridgeFile } from "./bridge.ts";
 import { showMessageModal } from "./modal.ts";
 import { loadCbz, loadPagesFromBridgeFiles } from "./pages.ts";
@@ -106,6 +107,15 @@ export async function openComicFile(file: OpenableFile, filePath?: string) {
 
       applyOpenedPages(nextPages, true);
       setLoaderVisible(false);
+      return;
+    }
+
+    if (ext && IMAGE_EXTENSIONS.includes(ext)) {
+      const blob = new Blob([arrayBuffer], { type: `image/${ext.slice(1)}` });
+      const page = { filename: file.name, url: URL.createObjectURL(blob), blob, disabled: false, originalOrder: 0 };
+      if (!isActiveOpenRequest(requestId)) return;
+      setLoaderVisible(false);
+      applyOpenedPages([page], false);
       return;
     }
 
