@@ -3,7 +3,10 @@
   "version": "1.0.0",
   "type": "module",
   "dependencies": {
+    "async-icns": "^1.0.2",
     "electrobun": "^1.0.0",
+    "icns-lib": "^1.0.1",
+    "icon-gen": "^5.0.0",
     "jszip": "^3.10.1",
     "node-unrar-js": "^2.0.2",
     "pdf-lib": "^1.17.1"
@@ -11,5 +14,8 @@
   "scripts": {
     "dev": "electrobun dev --watch",
     "build": "electrobun build --env=stable"
+  },
+  "devDependencies": {
+    "icns": "^0.1.0"
   }
 }
