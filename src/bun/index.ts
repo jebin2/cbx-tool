@@ -372,4 +372,5 @@ const mainWindow = new BrowserWindow({
   url: "views://mainview/index.html",
   rpc,
 });
+mainWindow.maximize();
 
