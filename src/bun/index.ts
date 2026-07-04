@@ -311,6 +311,9 @@ const rpc = defineElectrobunRPC("bun", {
             }
           }
 
+          // RAR entry order is archive order, not page order.
+          images.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" }));
+
           return { success: true, files: images };
         } catch (e) {
           console.error("CBR Extraction Error:", e);

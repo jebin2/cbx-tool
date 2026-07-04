@@ -62,6 +62,9 @@ export async function loadCbz(arrayBuffer: ArrayBuffer): Promise<{
     }
   }
 
+  // Zip entry order is insertion order, not page order.
+  imageFiles.sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }));
+
   if (imageFiles.length === 0) {
     return {
       initialPages: [],
