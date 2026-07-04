@@ -486,6 +486,7 @@ export function showLandingPage() {
   state.isFolderMode = false;
   state.selectedPageIndex = -1;
 
+  thumbObserver.disconnect();
   pageList.innerHTML = "";
   pageCount.textContent = "—";
   progressBar.style.transform = "scaleX(0)";
@@ -605,6 +606,77 @@ function findNearestEnabledPageIndex(index: number) {
   return findEnabledPageIndex(index, -1);
 }
 
+// ─── Page list: sidebar thumbnails ───────────────────────────────────────────
+
+// Sidebar tiles render at ~44x62 CSS px; decoding the full-resolution page
+// for each of them costs hundreds of MB on a large book. Generate a small
+// JPEG per page lazily, when its tile scrolls near the sidebar viewport.
+const THUMB_WIDTH = 128;
+
+const thumbPromises = new WeakMap<ComicPage, Promise<string>>();
+
+async function generateThumbnail(page: ComicPage): Promise<string> {
+  let blob = page.blob;
+  if (!blob) {
+    const response = await fetch(page.url);
+    if (!response.ok) throw new Error(`Failed to load ${page.filename}`);
+    blob = await response.blob();
+  }
+
+  const bitmap = await createImageBitmap(blob, { resizeWidth: THUMB_WIDTH, resizeQuality: "medium" });
+  const canvas = document.createElement("canvas");
+  canvas.width = bitmap.width;
+  canvas.height = bitmap.height;
+  canvas.getContext("2d")!.drawImage(bitmap, 0, 0);
+  bitmap.close();
+
+  const thumbBlob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.75));
+  if (!thumbBlob) throw new Error("Thumbnail encode failed");
+  return URL.createObjectURL(thumbBlob);
+}
+
+function ensureThumbnail(page: ComicPage, img: HTMLImageElement) {
+  if (page.thumbUrl) {
+    img.src = page.thumbUrl;
+    return;
+  }
+
+  let promise = thumbPromises.get(page);
+  if (!promise) {
+    promise = generateThumbnail(page);
+    thumbPromises.set(page, promise);
+  }
+
+  promise
+    .then((url) => {
+      if (!state.pages.includes(page)) {
+        // The book was replaced while generating — don't leak the URL.
+        URL.revokeObjectURL(url);
+        return;
+      }
+      page.thumbUrl = url;
+      img.src = url;
+    })
+    .catch(() => {
+      // Fall back to the full-resolution image rather than a blank tile.
+      img.src = page.url;
+    });
+}
+
+const thumbObserver = new IntersectionObserver(
+  (entries) => {
+    for (const entry of entries) {
+      if (!entry.isIntersecting) continue;
+      thumbObserver.unobserve(entry.target);
+      const img = entry.target as HTMLImageElement;
+      const index = parseInt(img.closest<HTMLElement>(".page-item")?.dataset.pageIndex ?? "-1");
+      const page = state.pages[index];
+      if (page) ensureThumbnail(page, img);
+    }
+  },
+  { root: pageList, rootMargin: "300px" }
+);
+
 // ─── Page list: item factory ──────────────────────────────────────────────────
 
 function createPageItem(page: ComicPage, index: number): HTMLElement {
@@ -616,13 +688,16 @@ function createPageItem(page: ComicPage, index: number): HTMLElement {
   item.draggable = true;
   item.dataset.pageIndex = index.toString();
   item.innerHTML = `
-    <img src="${page.url}" alt="Page ${index + 1}" loading="lazy">
+    <img alt="Page ${index + 1}"${page.thumbUrl ? ` src="${page.thumbUrl}"` : ""}>
     <div class="page-info">
       <div class="page-num">${index + 1}</div>
       <div class="page-name" title="${page.filename}">${page.filename}</div>
     </div>
     <button class="remove-btn" title="${page.disabled ? "Restore" : "Remove"}">${page.disabled ? "+" : "×"}</button>
   `;
+  if (!page.thumbUrl) {
+    thumbObserver.observe(item.querySelector("img")!);
+  }
   return item;
 }
 
@@ -736,6 +811,7 @@ export function appendPageItems(newPages: ComicPage[], startingIndex: number) {
  * use reorderPageItem, patchPageItem, or appendPageItems.
  */
 export function renderPageList() {
+  thumbObserver.disconnect();
   pageList.innerHTML = "";
   state.pages.forEach((page, index) => {
     pageList.appendChild(createPageItem(page, index));

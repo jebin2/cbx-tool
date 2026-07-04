@@ -27,6 +27,7 @@ function createBridgePage(filename: string, filePath: string, originalOrder: num
 export function disposePages(pageList: ComicPage[]) {
   pageList.forEach((page) => {
     if (page.url.startsWith("blob:")) URL.revokeObjectURL(page.url);
+    if (page.thumbUrl?.startsWith("blob:")) URL.revokeObjectURL(page.thumbUrl);
   });
 }
 

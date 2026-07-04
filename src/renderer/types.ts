@@ -4,6 +4,8 @@ export type ComicPage = {
   blob: Blob | null;
   disabled: boolean;
   originalOrder: number;
+  /** Small blob URL for the sidebar; generated lazily, revoked on dispose. */
+  thumbUrl?: string;
 };
 
 export type BinaryConfig = {
