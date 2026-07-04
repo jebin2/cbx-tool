@@ -1067,6 +1067,14 @@ export function togglePage(index: number) {
 
 // ─── Full page replacement ────────────────────────────────────────────────────
 
+// showViewer resets to the default view (vstrip, fit-height); script.ts
+// registers a callback here to re-apply the user's saved view preferences
+// after each open. A callback avoids a ui → script import cycle.
+let viewerOpenedCallback: (() => void) | null = null;
+export function setViewerOpenedCallback(callback: () => void) {
+  viewerOpenedCallback = callback;
+}
+
 export function applyOpenedPages(nextPages: ComicPage[], canExtract: boolean, initialPageIndex = 0) {
   state.selectedPageIndex = -1;
   replacePages(nextPages);
@@ -1078,4 +1086,6 @@ export function applyOpenedPages(nextPages: ComicPage[], canExtract: boolean, in
   } else {
     resetPageSelection();
   }
+
+  viewerOpenedCallback?.();
 }

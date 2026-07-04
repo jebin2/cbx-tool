@@ -3,6 +3,7 @@ import { state } from "./state.ts";
 import {
   addPageBtn,
   autoScrollBtn,
+  autoScrollSpeedInput,
   clearRecentBtn,
   copyBtn,
   dropZone,
@@ -30,6 +31,7 @@ import { fetchBridgeFile, initRPC } from "./bridge.ts";
 import { showMessageModal, setupModalListeners } from "./modal.ts";
 import { disposePages, loadPagesFromBridgeFiles } from "./pages.ts";
 import { flushReadingPositionSave } from "./progress.ts";
+import { loadViewPrefs, saveViewPrefs } from "./prefs.ts";
 import {
   applyOpenedPages,
   appendPageItems,
@@ -46,6 +48,7 @@ import {
   setFitToggleToFitHeight,
   showLandingPage,
   setupPageListEvents,
+  setViewerOpenedCallback,
 } from "./ui.ts";
 import { openComicFile, startOpenRequest, isActiveOpenRequest, loadRecentFiles } from "./loader.ts";
 import { copyCurrentPageToClipboard } from "./clipboard.ts";
@@ -316,30 +319,28 @@ autoScrollBtn.addEventListener("click", () => {
   }
 });
 
-fitToggleBtn.addEventListener("click", () => {
+function switchToVStrip(fit: "height" | "width") {
   exitHStripMode();
   state.isSpreadMode = false;
   hStripBtn.classList.remove("active");
   spreadBtn.classList.remove("active");
-  previewContainer.classList.remove("hstrip");
+  previewContainer.classList.remove("hstrip", "spread");
   viewerNode?.classList.remove("hstrip-mode");
 
-  if (previewContainer.classList.contains("fit-width")) {
-    previewContainer.classList.remove("fit-width");
-    previewContainer.classList.add("fit-height");
-    setFitToggleToFitWidth();
-  } else {
-    previewContainer.classList.remove("fit-height", "spread");
-    previewContainer.classList.add("fit-width");
+  previewContainer.classList.toggle("fit-width", fit === "width");
+  previewContainer.classList.toggle("fit-height", fit === "height");
+  if (fit === "width") {
     setFitToggleToFitHeight();
+  } else {
+    setFitToggleToFitWidth();
   }
 
   // Ensure vstrip class is present and reinit layout for new mode
   previewContainer.classList.add("vstrip");
   reinitVStrip();
-});
+}
 
-hStripBtn.addEventListener("click", () => {
+function switchToHStrip() {
   exitVStripMode();
   exitHStripMode();
   state.isSpreadMode = false;
@@ -349,9 +350,9 @@ hStripBtn.addEventListener("click", () => {
   viewerNode?.classList.add("hstrip-mode");
   hStripBtn.classList.add("active");
   enterHStripMode();
-});
+}
 
-spreadBtn.addEventListener("click", () => {
+function switchToSpread() {
   exitVStripMode();
   exitHStripMode();
   state.isSpreadMode = true;
@@ -365,6 +366,40 @@ spreadBtn.addEventListener("click", () => {
   if (state.selectedPageIndex !== -1) {
     selectPage(state.selectedPageIndex, true);
   }
+}
+
+fitToggleBtn.addEventListener("click", () => {
+  const nextFit = previewContainer.classList.contains("fit-width") ? "height" : "width";
+  switchToVStrip(nextFit);
+  saveViewPrefs({ viewMode: "vstrip", fitMode: nextFit });
+});
+
+hStripBtn.addEventListener("click", () => {
+  switchToHStrip();
+  saveViewPrefs({ viewMode: "hstrip" });
+});
+
+spreadBtn.addEventListener("click", () => {
+  switchToSpread();
+  saveViewPrefs({ viewMode: "spread" });
+});
+
+// Re-apply the saved view mode after each open (showViewer resets to the
+// default vstrip/fit-height).
+setViewerOpenedCallback(() => {
+  const prefs = loadViewPrefs();
+  if (prefs.viewMode === "hstrip") {
+    switchToHStrip();
+  } else if (prefs.viewMode === "spread") {
+    switchToSpread();
+  } else if (prefs.fitMode === "width") {
+    switchToVStrip("width");
+  }
+});
+
+autoScrollSpeedInput.value = loadViewPrefs().autoScrollSpeed;
+autoScrollSpeedInput.addEventListener("change", () => {
+  saveViewPrefs({ autoScrollSpeed: autoScrollSpeedInput.value });
 });
 
 clearRecentBtn?.addEventListener("click", async () => {
