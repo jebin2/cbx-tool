@@ -36,6 +36,7 @@ import {
 } from "./dom.ts";
 import { state } from "./state.ts";
 import { replacePages } from "./pages.ts";
+import { flushReadingPositionSave, scheduleReadingPositionSave } from "./progress.ts";
 
 // ─── Fit toggle icon helpers ──────────────────────────────────────────────────
 
@@ -476,6 +477,7 @@ export function showViewer(canExtract: boolean) {
 }
 
 export function showLandingPage() {
+  flushReadingPositionSave();
   exitVStripMode();
   exitHStripMode();
   replacePages([]);
@@ -921,6 +923,7 @@ export function selectPage(index: number, skipScrollBehavior = false) {
 
   updateProgressBar();
   updateCopyButtonState();
+  scheduleReadingPositionSave();
 }
 
 export function selectNextPage(skipScrollBehavior = false) {
@@ -988,14 +991,14 @@ export function togglePage(index: number) {
 
 // ─── Full page replacement ────────────────────────────────────────────────────
 
-export function applyOpenedPages(nextPages: ComicPage[], canExtract: boolean) {
+export function applyOpenedPages(nextPages: ComicPage[], canExtract: boolean, initialPageIndex = 0) {
   state.selectedPageIndex = -1;
   replacePages(nextPages);
   showViewer(canExtract);
   renderPageList();
 
   if (state.pages.length > 0) {
-    selectPage(0);
+    selectPage(Math.min(Math.max(0, initialPageIndex), state.pages.length - 1));
   } else {
     resetPageSelection();
   }

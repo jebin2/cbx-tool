@@ -5,7 +5,7 @@ import { basename, extname, join } from "path";
 import { homedir, tmpdir, platform } from "os";
 const IS_WIN = platform() === "win32";
 
-type RecentFileEntry = { name: string; path: string };
+type RecentFileEntry = { name: string; path: string; lastPageIndex?: number; totalPages?: number };
 
 // --- RPC handler param types (mirrors RPCType in renderer) ---
 type AddRecentFileParams = { name: string; filePath: string };
@@ -205,11 +205,13 @@ const rpc = defineElectrobunRPC("bun", {
             // Ignore parse/read errors and rebuild the recent file list.
           }
 
-          // Remove if it already exists to bring it to the front
+          // Remove if it already exists to bring it to the front,
+          // preserving its saved reading position.
+          const existing = current.find((f) => f.path === filePath);
           current = current.filter((f) => f.path !== filePath);
 
           // Add to front
-          current.unshift({ name, path: filePath });
+          current.unshift({ name, path: filePath, lastPageIndex: existing?.lastPageIndex, totalPages: existing?.totalPages });
 
           // Keep top 10
           if (current.length > 10) current = current.slice(0, 10);
@@ -219,6 +221,29 @@ const rpc = defineElectrobunRPC("bun", {
         } catch (e) {
           console.error("Failed to add recent file:", e);
           return { success: false };
+        }
+      },
+      saveReadingPosition: async ({ filePath, pageIndex, totalPages }: { filePath: string; pageIndex: number; totalPages: number }) => {
+        try {
+          const current = await loadRecentFilesFromDisk();
+          const entry = current.find((f) => f.path === filePath);
+          if (!entry) return { success: false };
+          entry.lastPageIndex = pageIndex;
+          entry.totalPages = totalPages;
+          await Bun.write(recentFilePath, JSON.stringify(current, null, 2));
+          return { success: true };
+        } catch (e) {
+          console.error("Failed to save reading position:", e);
+          return { success: false };
+        }
+      },
+      getReadingPosition: async ({ filePath }: { filePath: string }) => {
+        try {
+          const current = await loadRecentFilesFromDisk();
+          const entry = current.find((f) => f.path === filePath);
+          return { pageIndex: entry?.lastPageIndex ?? 0 };
+        } catch {
+          return { pageIndex: 0 };
         }
       },
       clearRecentFiles: async () => {

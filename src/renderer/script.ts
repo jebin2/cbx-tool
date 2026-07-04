@@ -29,6 +29,7 @@ import { getFileExtension, getFileName, getFolderName, waitForUiTick } from "./u
 import { fetchBridgeFile, initRPC } from "./bridge.ts";
 import { showMessageModal, setupModalListeners } from "./modal.ts";
 import { disposePages, loadPagesFromBridgeFiles } from "./pages.ts";
+import { flushReadingPositionSave } from "./progress.ts";
 import {
   applyOpenedPages,
   appendPageItems,
@@ -436,5 +437,6 @@ if (viewerNode) {
 // ─── Cleanup ──────────────────────────────────────────────────────────────────
 
 window.addEventListener("beforeunload", () => {
+  flushReadingPositionSave();
   disposePages(state.pages);
 });

@@ -14,6 +14,8 @@ export type BinaryConfig = {
 export type FileEntry = {
   name: string;
   path: string;
+  lastPageIndex?: number;
+  totalPages?: number;
 };
 
 export type OpenableFile = File & {
@@ -51,6 +53,14 @@ export type RPCType = {
       clearRecentFiles: {
         params: Record<string, never>;
         response: { success: boolean };
+      };
+      saveReadingPosition: {
+        params: { filePath: string; pageIndex: number; totalPages: number };
+        response: { success: boolean };
+      };
+      getReadingPosition: {
+        params: { filePath: string };
+        response: { pageIndex: number };
       };
       extractCBR: {
         params: { filePath: string };

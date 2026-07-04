@@ -1,6 +1,7 @@
 import { appModal, autoScrollBtn, autoScrollGroup, autoScrollSpeedInput, pageList, previewContainer, viewerNode } from "./dom.ts";
 import { state } from "./state.ts";
 import { loadHStripWindow, loadVStripWindow, selectNextPage, selectPreviousPage, selectPage, togglePage, updateProgressBar } from "./ui.ts";
+import { scheduleReadingPositionSave } from "./progress.ts";
 
 export function stopAutoScroll() {
   if (state.autoScrollInterval !== null) {
@@ -84,6 +85,7 @@ export function setupScrollHandler() {
       // reading scrollLeft after a DOM mutation in the same event handler.
       if (newIndex !== state.selectedPageIndex) {
         state.selectedPageIndex = newIndex;
+        scheduleReadingPositionSave();
         requestAnimationFrame(() => {
           loadHStripWindow(newIndex);
           updateProgressBar();
@@ -100,6 +102,7 @@ export function setupScrollHandler() {
       }
       if (newIndex !== state.selectedPageIndex) {
         state.selectedPageIndex = newIndex;
+        scheduleReadingPositionSave();
         requestAnimationFrame(() => {
           loadVStripWindow(newIndex);
           updateProgressBar();

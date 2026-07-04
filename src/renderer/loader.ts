@@ -19,6 +19,18 @@ import {
   setSaveButtonMode,
 } from "./ui.ts";
 import { stopAutoScroll } from "./nav.ts";
+import { resetReadingPositionSave } from "./progress.ts";
+
+/** Saved reading position for the current file, or 0 when none/unavailable. */
+async function getSavedPageIndex(): Promise<number> {
+  if (!state.rpc || !state.currentFilePath) return 0;
+  try {
+    const response = await state.rpc.request.getReadingPosition({ filePath: state.currentFilePath });
+    return response.pageIndex || 0;
+  } catch {
+    return 0;
+  }
+}
 
 export function startOpenRequest(): number {
   state.openRequestId += 1;
@@ -36,6 +48,7 @@ export async function openComicFile(file: OpenableFile, filePath?: string) {
   try {
     state.currentFileName = file.name;
     state.currentFilePath = filePath || file.path || null;
+    resetReadingPositionSave();
     setSaveButtonMode("save");
 
     if (state.currentFilePath && state.rpc) {
@@ -57,9 +70,10 @@ export async function openComicFile(file: OpenableFile, filePath?: string) {
         throw new Error("No images found in the archive.");
       }
 
+      const savedIndex = await getSavedPageIndex();
       if (!isActiveOpenRequest(requestId)) return;
 
-      applyOpenedPages(loadPagesFromZipEntries(state.currentFilePath, response.entries), true);
+      applyOpenedPages(loadPagesFromZipEntries(state.currentFilePath, response.entries), true, savedIndex);
       setLoaderVisible(false);
       return;
     }
@@ -103,9 +117,10 @@ export async function openComicFile(file: OpenableFile, filePath?: string) {
       }
 
       const nextPages = loadPagesFromBridgeFiles(response.files);
+      const savedIndex = await getSavedPageIndex();
       if (!isActiveOpenRequest(requestId)) return;
 
-      applyOpenedPages(nextPages, true);
+      applyOpenedPages(nextPages, true, savedIndex);
       setLoaderVisible(false);
       return;
     }
@@ -177,6 +192,9 @@ export async function loadRecentFiles() {
     recentFiles.forEach((file) => {
       const item = document.createElement("div");
       item.className = "recent-file-item";
+      const progressLabel = file.lastPageIndex && file.lastPageIndex > 0
+        ? `<span class="recent-file-progress">Page ${file.lastPageIndex + 1}${file.totalPages ? ` of ${file.totalPages}` : ""}</span>`
+        : "";
       item.innerHTML = `
         <svg class="recent-file-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
@@ -188,6 +206,7 @@ export async function loadRecentFiles() {
         <div class="recent-file-info">
           <span class="recent-file-name" title="${file.name}">${file.name}</span>
           <span class="recent-file-path" title="${file.path}">${file.path}</span>
+          ${progressLabel}
         </div>
       `;
 
