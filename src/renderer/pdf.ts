@@ -4,6 +4,7 @@ import { showMessageModal, showPromptModal } from "./modal.ts";
 import { setLoaderVisible } from "./ui.ts";
 import { writeBridgeFile } from "./bridge.ts";
 import { getParentPath } from "./utils.ts";
+import { fetchPageBlobs } from "./save.ts";
 
 function detectImageType(bytes: Uint8Array): "jpeg" | "png" | "other" {
   if (bytes[0] === 0xFF && bytes[1] === 0xD8) return "jpeg";
@@ -64,9 +65,14 @@ export async function exportAsPdf() {
   try {
     const pdfDoc = await PDFDocument.create();
 
-    for (const page of activePages) {
-      const blobData = page.blob ?? await fetch(page.url).then((r) => r.blob());
-      const arrayBuffer = await blobData.arrayBuffer();
+    const blobs = await fetchPageBlobs(activePages, (done, total) =>
+      setLoaderVisible(true, `Exporting PDF… loading ${done}/${total} pages`)
+    );
+
+    for (let pageIndex = 0; pageIndex < activePages.length; pageIndex++) {
+      const page = activePages[pageIndex];
+      setLoaderVisible(true, `Exporting PDF… embedding ${pageIndex + 1}/${activePages.length}`);
+      const arrayBuffer = await blobs[pageIndex].arrayBuffer();
       const bytes = new Uint8Array(arrayBuffer);
       const type = detectImageType(bytes);
 
