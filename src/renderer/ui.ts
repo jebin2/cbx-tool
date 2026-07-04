@@ -94,8 +94,8 @@ const HSTRIP_ASPECT = 2 / 3; // estimated width/height ratio for unloaded images
 /** Number of pages that can fit in half the viewport plus buffer. */
 function hstripHalfWindow(): number {
   if (!viewerNode) return 3;
-  const estimatedPageWidth = viewerNode.clientHeight * HSTRIP_ASPECT;
-  const pagesPerView = Math.ceil(viewerNode.clientWidth / estimatedPageWidth);
+  const estimatedPageWidth = (viewerNode.clientHeight || window.innerHeight) * HSTRIP_ASPECT;
+  const pagesPerView = Math.ceil((viewerNode.clientWidth || window.innerWidth) / estimatedPageWidth);
   return Math.ceil(pagesPerView / 2) + HSTRIP_BUFFER;
 }
 
@@ -115,7 +115,7 @@ function recomputeHStripLeftsFrom(fromIndex: number) {
 
 /** Initialize width/left arrays for all pages with estimated sizes. */
 function initHStripLayout() {
-  const displayH = viewerNode ? viewerNode.clientHeight : window.innerHeight;
+  const displayH = (viewerNode && viewerNode.clientHeight) || window.innerHeight;
   const estimatedW = Math.round(displayH * HSTRIP_ASPECT);
   state.hstripWidths = state.pages.map(() => estimatedW);
   state.hstripLefts = [];
@@ -234,6 +234,22 @@ export function enterHStripMode() {
   });
 }
 
+export function reinitHStrip() {
+  if (!previewContainer.classList.contains("hstrip")) return;
+  const center = state.selectedPageIndex >= 0 ? state.selectedPageIndex : 0;
+
+  hstripGeneration++;
+  for (const el of state.hstripElementMap.values()) { (el as HTMLImageElement).src = ""; el.remove(); }
+  state.hstripElementMap.clear();
+
+  initHStripLayout();
+  loadHStripWindow(center);
+
+  requestAnimationFrame(() => {
+    if (viewerNode) viewerNode.scrollLeft = state.hstripLefts[center] ?? 0;
+  });
+}
+
 export function exitHStripMode() {
   hstripGeneration++;
   for (const el of state.hstripElementMap.values()) { (el as HTMLImageElement).src = ""; el.remove(); }
@@ -274,9 +290,14 @@ function vstripHalfWindow(): number {
 
 function vstripEstimatedHeight(): number {
   if (!viewerNode) return 800;
+  // Fall back to the window size when the viewer hasn't been measured yet
+  // (clientHeight 0 during startup) — a zero/negative estimate would collapse
+  // all page tops to <= 0 and make the scroll handler select the last page.
+  const viewerHeight = viewerNode.clientHeight || window.innerHeight;
+  const viewerWidth = viewerNode.clientWidth || window.innerWidth;
   return vstripMode() === "fit-height"
-    ? viewerNode.clientHeight - 80
-    : Math.round(viewerNode.clientWidth * VSTRIP_ASPECT);
+    ? Math.max(200, viewerHeight - 80)
+    : Math.round(viewerWidth * VSTRIP_ASPECT);
 }
 
 function recomputeVStripTopsFrom(fromIndex: number) {

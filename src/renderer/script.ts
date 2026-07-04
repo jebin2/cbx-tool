@@ -35,6 +35,7 @@ import {
   enterHStripMode,
   exitHStripMode,
   exitVStripMode,
+  reinitHStrip,
   reinitVStrip,
   renderPageList,
   selectPage,
@@ -403,6 +404,34 @@ dropZone.addEventListener("drop", (e) => {
     setLoaderVisible(false);
   }
 });
+
+// ─── Window resize ────────────────────────────────────────────────────────────
+
+// Strip layouts cache per-page sizes derived from the viewer's dimensions, so
+// they go stale whenever the viewer changes size. Observe the element rather
+// than the window: it also covers the startup race where a fast open lays out
+// pages before the viewer has been measured (clientHeight still 0).
+if (viewerNode) {
+  const observedViewer = viewerNode;
+  let lastViewerWidth = observedViewer.clientWidth;
+  let lastViewerHeight = observedViewer.clientHeight;
+  let resizeReinitTimer: number | null = null;
+
+  new ResizeObserver(() => {
+    const width = observedViewer.clientWidth;
+    const height = observedViewer.clientHeight;
+    if (width === lastViewerWidth && height === lastViewerHeight) return;
+    lastViewerWidth = width;
+    lastViewerHeight = height;
+
+    if (resizeReinitTimer !== null) clearTimeout(resizeReinitTimer);
+    resizeReinitTimer = window.setTimeout(() => {
+      resizeReinitTimer = null;
+      reinitVStrip();
+      reinitHStrip();
+    }, 150);
+  }).observe(observedViewer);
+}
 
 // ─── Cleanup ──────────────────────────────────────────────────────────────────
 
