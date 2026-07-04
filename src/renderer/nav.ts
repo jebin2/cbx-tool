@@ -60,11 +60,25 @@ export function setupScrollHandler() {
   const activeViewerNode = viewerNode;
 
   // After scroll stops, sync sidebar highlight / progress bar for hstrip and vstrip.
-  activeViewerNode.addEventListener("scrollend", () => {
+  const syncAfterScrollStops = () => {
     if (previewContainer.classList.contains("hstrip") || previewContainer.classList.contains("vstrip")) {
       selectPage(state.selectedPageIndex, true);
     }
-  });
+  };
+
+  if ("onscrollend" in window) {
+    activeViewerNode.addEventListener("scrollend", syncAfterScrollStops);
+  } else {
+    // WebKit builds without scrollend: treat 150ms of scroll silence as the end.
+    let scrollIdleTimer: number | null = null;
+    activeViewerNode.addEventListener("scroll", () => {
+      if (scrollIdleTimer !== null) clearTimeout(scrollIdleTimer);
+      scrollIdleTimer = window.setTimeout(() => {
+        scrollIdleTimer = null;
+        syncAfterScrollStops();
+      }, 150);
+    });
+  }
 
   activeViewerNode.addEventListener("scroll", () => {
     if (state.isScrollingProgrammatically) return;
