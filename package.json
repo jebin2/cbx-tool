@@ -1,6 +1,6 @@
 {
   "name": "simple-comic-editor",
-  "version": "1.0.0",
+  "version": "1.2.3",
   "type": "module",
   "dependencies": {
     "async-icns": "^1.0.2",
