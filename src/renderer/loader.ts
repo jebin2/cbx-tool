@@ -10,7 +10,7 @@ import { getFileExtension, getFileName, waitForUiTick } from "./utils.ts";
 import { IMAGE_EXTENSIONS } from "./constants.ts";
 import { fetchBridgeFile } from "./bridge.ts";
 import { showMessageModal } from "./modal.ts";
-import { loadCbz, loadPagesFromBridgeFiles } from "./pages.ts";
+import { loadCbz, loadPagesFromBridgeFiles, loadPagesFromZipEntries } from "./pages.ts";
 import {
   applyOpenedPages,
   appendPageItems,
@@ -47,25 +47,25 @@ export async function openComicFile(file: OpenableFile, filePath?: string) {
     const ext = getFileExtension(file.name);
 
     if (ext === ".cbz" && state.currentFilePath && state.rpc) {
-      const response = await state.rpc.request.extractCBZ({ filePath: state.currentFilePath });
+      // Only the zip directory is read here; pages are decompressed on demand
+      // by the /zip-entry bridge route, so the first page shows immediately.
+      const response = await state.rpc.request.listCBZ({ filePath: state.currentFilePath });
       if (!response.success) {
-        throw new Error(response.error || "CBZ extraction failed.");
+        throw new Error(response.error || "CBZ read failed.");
+      }
+      if (response.entries.length === 0) {
+        throw new Error("No images found in the archive.");
       }
 
       if (!isActiveOpenRequest(requestId)) return;
 
-      const nextPages = loadPagesFromBridgeFiles(response.files);
-      if (!isActiveOpenRequest(requestId)) return;
-
-      applyOpenedPages(nextPages, true);
+      applyOpenedPages(loadPagesFromZipEntries(state.currentFilePath, response.entries), true);
       setLoaderVisible(false);
       return;
     }
 
-    const arrayBuffer = await file.arrayBuffer();
-
     if (ext === ".cbz") {
-      const { initialPages, loadRemainingPages } = await loadCbz(arrayBuffer);
+      const { initialPages, loadRemainingPages } = await loadCbz(await file.arrayBuffer());
       if (!initialPages.length) {
         throw new Error("No images found in the archive.");
       }
@@ -111,7 +111,7 @@ export async function openComicFile(file: OpenableFile, filePath?: string) {
     }
 
     if (ext && IMAGE_EXTENSIONS.includes(ext)) {
-      const blob = new Blob([arrayBuffer], { type: `image/${ext.slice(1)}` });
+      const blob = new Blob([await file.arrayBuffer()], { type: `image/${ext.slice(1)}` });
       const page = { filename: file.name, url: URL.createObjectURL(blob), blob, disabled: false, originalOrder: 0 };
       if (!isActiveOpenRequest(requestId)) return;
       setLoaderVisible(false);
@@ -142,7 +142,12 @@ export async function openKnownFile(filePath: string, fileName: string) {
   await waitForUiTick();
 
   try {
-    const file = await fetchBridgeFile(filePath, fileName, "application/zip");
+    // Archives with a known path are opened via RPC by path, so don't pull
+    // the whole file over the bridge just to hand its name along.
+    const ext = getFileExtension(fileName);
+    const file = ext === ".cbz" || ext === ".cbr"
+      ? (new File([], fileName) as OpenableFile)
+      : await fetchBridgeFile(filePath, fileName, "application/zip");
     await openComicFile(file, filePath);
   } catch (error) {
     console.error("Failed to open recent file:", error);

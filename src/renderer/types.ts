@@ -20,6 +20,11 @@ export type OpenableFile = File & {
   path?: string;
 };
 
+export type ZipEntryInfo = {
+  name: string;
+  entry: string;
+};
+
 export type RPCType = {
   bun: {
     requests: {
@@ -54,6 +59,10 @@ export type RPCType = {
       extractCBZ: {
         params: { filePath: string };
         response: { success: boolean; error?: string; files: FileEntry[] };
+      };
+      listCBZ: {
+        params: { filePath: string };
+        response: { success: boolean; error?: string; entries: ZipEntryInfo[] };
       };
       readFolder: {
         params: { folderPath: string };

@@ -13,6 +13,7 @@ type ShowSaveDialogParams = { defaultPath: string };
 type ShowOpenDialogParams = { canChooseDirectory?: boolean; allowMultiple?: boolean; allowedFileTypes?: string };
 type ExtractCBRParams = { filePath: string };
 type ExtractCBZParams = { filePath: string };
+type ListCBZParams = { filePath: string };
 type ExtractArchiveToFolderParams = {
   sourcePath: string;
   destinationPath: string;
@@ -40,6 +41,44 @@ async function createRarExtractor(filePath: string) {
 
   return createExtractorFromData({ data: fileBuffer, wasmBinary });
 }
+
+// --- On-demand CBZ serving ---
+// One archive is open at a time, so cache the last loaded zip. Storing the
+// promise (not the resolved zip) lets concurrent /zip-entry requests share a
+// single load instead of each re-reading the file.
+type LoadedZip = Awaited<ReturnType<typeof import("jszip").loadAsync>>;
+let zipCachePath: string | null = null;
+let zipCachePromise: Promise<LoadedZip> | null = null;
+
+function loadZipCached(filePath: string, forceReload = false): Promise<LoadedZip> {
+  if (!forceReload && zipCachePath === filePath && zipCachePromise) {
+    return zipCachePromise;
+  }
+
+  zipCachePath = filePath;
+  zipCachePromise = (async () => {
+    const JSZip = (await import("jszip")).default;
+    const fileBuffer = await Bun.file(filePath).arrayBuffer();
+    return JSZip.loadAsync(fileBuffer);
+  })();
+  // Drop a failed load so the next request retries instead of caching the error.
+  zipCachePromise.catch(() => {
+    if (zipCachePath === filePath) {
+      zipCachePath = null;
+      zipCachePromise = null;
+    }
+  });
+  return zipCachePromise;
+}
+
+const CONTENT_TYPES: Record<string, string> = {
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".png": "image/png",
+  ".gif": "image/gif",
+  ".webp": "image/webp",
+  ".bmp": "image/bmp",
+};
 
 const securityToken = randomBytes(32).toString('hex');
 let serverPort = 0;
@@ -92,6 +131,28 @@ const server = Bun.serve({
 
     const filePath = url.searchParams.get("path");
     if (!filePath) return new Response("Missing path", { status: 400, headers });
+
+    if (req.method === "GET" && url.pathname === "/zip-entry") {
+      const entryName = url.searchParams.get("entry");
+      if (!entryName) return new Response("Missing entry", { status: 400, headers });
+
+      try {
+        const zip = await loadZipCached(filePath);
+        const entry = zip.files[entryName];
+        if (!entry || entry.dir) {
+          return new Response("Entry not found", { status: 404, headers });
+        }
+
+        const content = await entry.async("arraybuffer");
+        const lastDot = entryName.lastIndexOf(".");
+        const ext = lastDot !== -1 ? entryName.toLowerCase().slice(lastDot) : "";
+        headers.set("Content-Type", CONTENT_TYPES[ext] || "application/octet-stream");
+        return new Response(content, { headers });
+      } catch (e) {
+        console.error("zip-entry error:", e);
+        return new Response("Failed to read entry", { status: 500, headers });
+      }
+    }
 
     if (req.method === "GET") {
       const bunFile = Bun.file(filePath);
@@ -254,6 +315,27 @@ const rpc = defineElectrobunRPC("bun", {
         } catch (e) {
           console.error("CBR Extraction Error:", e);
           return { success: false, error: (e as Error).message, files: [] };
+        }
+      },
+
+      listCBZ: async ({ filePath }: ListCBZParams) => {
+        console.log(`[Backend] Listing CBZ: ${filePath}`);
+        try {
+          // Force a reload so reopening a file that was modified on disk
+          // (e.g. saved over) never serves stale entries from the cache.
+          const zip = await loadZipCached(filePath, true);
+          const imageExtensions = [".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"];
+
+          const entries = Object.entries(zip.files)
+            .filter(([name, f]) => !f.dir && imageExtensions.includes(extname(name).toLowerCase()))
+            .map(([name]) => name)
+            .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }))
+            .map((name) => ({ name: basename(name), entry: name }));
+
+          return { success: true, entries };
+        } catch (e) {
+          console.error("CBZ List Error:", e);
+          return { success: false, error: (e as Error).message, entries: [] };
         }
       },
 

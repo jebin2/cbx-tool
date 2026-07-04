@@ -93,7 +93,11 @@ async function openArchiveFromPicker() {
       landingContainer.classList.add("hidden");
       await waitForUiTick();
 
-      const file = await fetchBridgeFile(filePath, fileName, "application/zip");
+      // Archives are opened via RPC by path; skip pulling the file over the bridge.
+      const ext = getFileExtension(fileName);
+      const file = ext === ".cbz" || ext === ".cbr"
+        ? (new File([], fileName) as OpenableFile)
+        : await fetchBridgeFile(filePath, fileName, "application/zip");
       await openComicFile(file, filePath);
     } catch (error) {
       console.error("RPC open failed:", error);

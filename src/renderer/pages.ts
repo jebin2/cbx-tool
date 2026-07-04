@@ -1,5 +1,5 @@
 import JSZip from "jszip";
-import type { ComicPage, FileEntry } from "./types.ts";
+import type { ComicPage, FileEntry, ZipEntryInfo } from "./types.ts";
 import { state } from "./state.ts";
 import { isImageFile } from "./utils.ts";
 import { createBridgeUrl } from "./bridge.ts";
@@ -37,6 +37,16 @@ export function replacePages(nextPages: ComicPage[]) {
 
 export function loadPagesFromBridgeFiles(files: FileEntry[], startingOrder = 0): ComicPage[] {
   return files.map((file, index) => createBridgePage(file.name, file.path, startingOrder + index));
+}
+
+export function loadPagesFromZipEntries(archivePath: string, entries: ZipEntryInfo[]): ComicPage[] {
+  return entries.map((e, index) => ({
+    filename: e.name,
+    url: createBridgeUrl("/zip-entry", { path: archivePath, entry: e.entry }),
+    blob: null,
+    disabled: false,
+    originalOrder: index,
+  }));
 }
 
 export async function loadCbz(arrayBuffer: ArrayBuffer): Promise<{
