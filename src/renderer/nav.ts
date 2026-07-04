@@ -17,16 +17,31 @@ export function startAutoScroll() {
   autoScrollBtn.classList.add("active");
   autoScrollGroup?.classList.add("active");
 
-  function scrollStep() {
-    if (viewerNode) {
+  // Time-based so the speed is the same on any refresh rate. The slider maps
+  // to pixels/second (value * 30 == the old value * 0.5 px/frame at 60 Hz).
+  let lastTimestamp: number | null = null;
+  let pendingScroll = 0;
+
+  function scrollStep(now: number) {
+    if (viewerNode && lastTimestamp !== null) {
+      // Clamp long gaps (frame stalls) so scrolling doesn't jump to catch up.
+      const elapsedMs = Math.min(now - lastTimestamp, 100);
       const speedSliderValue = parseInt(autoScrollSpeedInput.value || "2", 10);
-      const speed = speedSliderValue * 0.5;
-      if (previewContainer.classList.contains("hstrip")) {
-        viewerNode.scrollBy({ left: speed, behavior: "instant" });
-      } else {
-        viewerNode.scrollBy({ top: speed, behavior: "instant" });
+      const pixelsPerSecond = speedSliderValue * 30;
+      // Accumulate fractional pixels — repeated sub-pixel scrollBy calls
+      // would each round to zero and stall at low speeds.
+      pendingScroll += (pixelsPerSecond * elapsedMs) / 1000;
+      const step = Math.trunc(pendingScroll);
+      if (step !== 0) {
+        pendingScroll -= step;
+        if (previewContainer.classList.contains("hstrip")) {
+          viewerNode.scrollBy({ left: step, behavior: "instant" });
+        } else {
+          viewerNode.scrollBy({ top: step, behavior: "instant" });
+        }
       }
     }
+    lastTimestamp = now;
     state.autoScrollInterval = requestAnimationFrame(scrollStep);
   }
 
